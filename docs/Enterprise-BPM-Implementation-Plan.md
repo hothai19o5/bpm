@@ -157,9 +157,15 @@ Phần thảo luận phạm vi/nghiệp vụ/trải nghiệm Phase 0 đã chốt
 7. **Storage:** đưa dịch vụ S3-compatible, bucket và volume vào môi trường trước triển khai upload/download ở P6.1; không chặn bước backend + PostgreSQL hiện tại vì storage chưa dùng.
 8. **Hướng dẫn và kiểm tra:** tài liệu lệnh build/start/stop/log/test, kiểm tra kết nối app/DB, recreate container vẫn còn dữ liệu dev, test cách ly và reset dữ liệu có chủ đích. Các lệnh là đầu ra cần bổ sung, chưa được ghi là đã chạy.
 
-### P1.3 — Nền HTTP và JWT security
+### P1.3 — Ranh giới module và hợp đồng API
 
-**Cập nhật theo yêu cầu mới nhất (C-18):** Đã bổ sung security JWT Bearer stateless do BPM tự phát bằng HS256/Nimbus; có secret dev mặc định theo yêu cầu. Repository trước đó chưa triển khai session auth. Phần nền gồm CORS allowlist, global exception handler, base response, Clock và correlation/logging. Token issuer/decoder và test source JWT thật đã có; login/refresh/logout/revoke/ACTIVE check còn thuộc P2.1. Các phần nghiệp vụ P1.3 tiếp tục theo kế hoạch. Chưa chạy build/test, chưa đánh dấu P1.3/P2.1 đạt. Chi tiết tại [nền HTTP/security](P1.3-API-Foundation.md).
+**Khung ban đầu:** Theo yêu cầu người dùng, chỉ tạo file, comment, chữ ký hàm và `// TODO:`; người dùng tự viết implementation. Có tài liệu ranh giới của 8 module, khung hợp đồng dùng chung và lát cắt đọc danh mục process làm mẫu. [Hướng dẫn tự triển khai](P1.3-Manual-Implementation-Guide.md) mô tả từng file, luồng gọi, thứ tự code và kiểm tra. Chưa build/test, chưa hoàn tất implementation và chưa đánh dấu P1.3 đạt.
+
+**Cập nhật theo yêu cầu mới nhất (C-18):** Đã bổ sung security JWT Bearer stateless do BPM tự phát bằng HS256/Nimbus; có secret dev mặc định theo yêu cầu. Repository trước đó chưa triển khai session auth. Phần nền gồm CORS allowlist, global exception handler, base response, Clock và correlation/logging. Token issuer/decoder và test source JWT thật đã có; login/refresh/logout/revoke/ACTIVE check còn thuộc P2.1. Nghiệp vụ/process/helper còn TODO vẫn do người dùng tự viết. Chưa chạy build/test, chưa đánh dấu P1.3/P2.1 đạt. Chi tiết tại [nền HTTP/security](P1.3-API-Foundation.md).
+
+**Tiến độ code ngày 02/11/2026:** Theo yêu cầu sửa và commit P1.3, đã hoàn thiện phân trang, revision guard, DTO mapper, policy và body controller/config cho ví dụ đọc danh mục; use case điều phối qua port, không nhận actor từ client. Lỗi query/expected revision sai dùng INVALID_REQUEST, revision cũ dùng REVISION_CONFLICT; policy ném lỗi và dừng trước query khi thiếu danh tính/quyền. Có test source cho phân trang biên lớn, lỗi HTTP 400, policy/use case và mapping response; chưa chạy build/test theo AGENTS.md, chưa đánh dấu P1.3 đạt.
+
+**Ranh giới để dành:** Controller/config process chưa kích hoạt bean/route; persistence adapter danh mục và CurrentActorProvider thật còn chờ schema/tài khoản/quyền ở các bước tương ứng. Permission `Admin`/`SubAdmin` hiện chỉ là giá trị của bài thực hành, cần chuẩn hóa RBAC tại P2.3. Đây không phải API danh mục đã nghiệm thu. Người dùng chạy stack dev/test theo README để xác nhận trước khi chốt P1.3; P1.4 tập trung schema dev/test và test harness, chưa thêm migration.
 
 ## 6. Phase 2 — Danh tính, tổ chức, phân quyền và khung UI
 

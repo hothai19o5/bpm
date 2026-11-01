@@ -127,20 +127,28 @@ Storage S3-compatible sẽ được bổ sung trước chức năng đính kèm;
 
 Người dùng đã xác nhận chạy xong Docker; kết quả test stack và kiểm tra persistence sẽ được ghi nhận riêng tại [P1.2 trong kế hoạch](docs/Enterprise-BPM-Implementation-Plan.md). Bước tiếp theo là P1.3 — cấu trúc module và hợp đồng API nền.
 
-## 7. Nền JWT security và API
+## 7. P1.3 — Module và hợp đồng API
 
-Đã bổ sung JWT Bearer tự phát HS256, CORS, global exception handler, response JSON
-chung, Clock và correlation/logging. Chưa chạy build/test; login/refresh/logout,
-thu hồi token và trạng thái tài khoản sẽ được hoàn thiện ở P2.1.
+Đã có ranh giới 8 module, hợp đồng phân trang/revision, ActorContext, DTO mapper,
+policy và luồng đọc danh mục process qua controller/use case/port. Ngày 02/11/2026
+đã sửa xử lý lỗi đầu vào, policy từ chối truy cập và tràn số phân trang; bổ sung test
+source cho helper, use case và controller. JWT Bearer tự phát HS256, CORS, global
+exception handler, response chung, Clock và correlation/logging đã được bổ sung ở
+commit security trước đó.
 
-Xem [hướng dẫn nền HTTP/security](docs/P1.3-API-Foundation.md) để biết vai trò file,
-hợp đồng response, cấu hình JWT và các lệnh kiểm tra.
+Phần code P1.3 đã được rà soát tĩnh; **build/test vẫn chờ người dùng chạy**, chưa
+đánh dấu bước đạt. Controller/config process đã có body nhưng chưa đăng ký route/
+bean; adapter danh mục và danh tính thật tiếp tục ở các bước phụ thuộc schema/P2/P4.
 
-Dev CORS mặc định cho `http://localhost:5173` và `http://127.0.0.1:5173`; thay
+- [Hướng dẫn từng phần](docs/P1.3-Manual-Implementation-Guide.md): code map, mục đích file, trạng thái code và phần để dành cho các bước sau.
+- [Nền HTTP/security đã triển khai](docs/P1.3-API-Foundation.md): response, secret/issuer/audience/TTL, cách gửi Bearer token và lệnh kiểm tra.
+
+Dev CORS mặc định cho `http://localhost:5173` và `http://127.0.0.1:5173`; thay bằng
 `CORS_ALLOWED_ORIGINS` trong `.env` khi frontend chạy origin khác. Client gửi
-`Authorization: Bearer <accessToken>`, không dùng cookie phiên để xác thực.
-Dev có secret mặc định theo yêu cầu; thay `JWT_SECRET_KEY` trong `.env` khi cần.
-`JWT_ISSUER=https://bpm.local`, `JWT_AUDIENCE=bpm-api`, `JWT_ACCESS_TOKEN_TTL=30m`
-là baseline dev. Ngoài dev/test phải cấp secret riêng.
+`Authorization: Bearer <accessToken>`, không gửi cookie phiên. Dev có secret HS256
+mặc định theo yêu cầu người dùng; thay `JWT_SECRET_KEY` trong `.env` khi cần.
+`JWT_ISSUER=https://bpm.local`, `JWT_AUDIENCE=bpm-api`, `JWT_ACCESS_TOKEN_TTL=30m` là
+baseline dev. Ngoài dev/test phải cấp secret riêng. Service phát token đã có;
+API login/refresh/logout và trạng thái tài khoản sẽ được nối ở P2.1.
 
 Tham chiếu: [Docker Compose health/dependency](https://docs.docker.com/compose/how-tos/startup-order/), [PostgreSQL official image — volume PostgreSQL 18](https://hub.docker.com/_/postgres), [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/endpoints.html), [Flowable schema configuration](https://www.flowable.com/open-source/docs/bpmn/ch05a-Spring-Boot).

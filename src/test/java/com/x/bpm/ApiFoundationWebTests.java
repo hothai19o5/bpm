@@ -13,6 +13,7 @@ import com.x.bpm.shared.api.ApiResponse;
 import com.x.bpm.shared.api.ApiResponseFactory;
 import com.x.bpm.shared.api.ApiResponseWriter;
 import com.x.bpm.shared.config.ApiFoundationConfiguration;
+import com.x.bpm.shared.application.PageQuery;
 import com.x.bpm.shared.error.ApplicationException;
 import com.x.bpm.shared.error.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
@@ -47,6 +48,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.ObjectMapper;
 
@@ -188,6 +190,16 @@ class ApiFoundationWebTests {
     }
 
     @Test
+    void invalidPaginationReturns400InsteadOf500() throws Exception {
+        for (var parameter : Map.of("page", "-1", "size", "101", "sort", "name,invalid").entrySet()) {
+            mvc.perform(get("/api/v1/test/pagination").header("Authorization", bearer())
+                            .param(parameter.getKey(), parameter.getValue()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        }
+    }
+
+    @Test
     void malformedJsonAndUnsupportedMethodKeepTheirHttpSemantics() throws Exception {
         mvc.perform(post("/api/v1/test/probe").header("Authorization", bearer())
                         .contentType(MediaType.APPLICATION_JSON).content("{"))
@@ -267,6 +279,13 @@ class ApiFoundationWebTests {
         public ApiResponse<Map<String, String>> postProbe(@Valid @RequestBody ProbeRequest body,
                                                          HttpServletRequest request) {
             return responses.success(Map.of("name", body.name()), request);
+        }
+
+        @GetMapping("/api/v1/test/pagination")
+        public ApiResponse<PageQuery> pagination(@RequestParam(name = "page", required = false) Integer page,
+                @RequestParam(name = "size", required = false) Integer size,
+                @RequestParam(name = "sort", required = false) String sort, HttpServletRequest request) {
+            return responses.success(PageQuery.from(page, size, sort), request);
         }
 
         @PreAuthorize("hasAuthority('PROCESS_READ')")
