@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    # No dev fallback: the test runner must supply its own database explicitly.
+    url: ${TEST_DATABASE_URL}
+    username: ${TEST_DATABASE_USERNAME}
+    password: ${TEST_DATABASE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+# The isolated PostgreSQL test container is temporary; no dev tables are touched.
+flowable:
+  database-schema-update: "true"

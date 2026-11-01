@@ -1,0 +1,44 @@
+# Standalone test stack; do not merge this file with compose.yaml.
+name: bpm-test
+
+services:
+  tests:
+    build:
+      context: .
+      target: test
+    environment:
+      SPRING_PROFILES_ACTIVE: test
+      TEST_DATABASE_URL: jdbc:postgresql://postgres:5432/bpm_test
+      TEST_DATABASE_USERNAME: bpm_test
+      TEST_DATABASE_PASSWORD: bpm-test-only
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - maven-cache:/root/.m2
+    networks:
+      - bpm-test
+
+  postgres:
+    image: postgres:18.6
+    environment:
+      POSTGRES_DB: bpm_test
+      POSTGRES_USER: bpm_test
+      POSTGRES_PASSWORD: bpm-test-only
+    # No published port or dev volume. Data disappears when the DB stops.
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - bpm-test
+
+volumes:
+  maven-cache:
+
+networks:
+  bpm-test:
