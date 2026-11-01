@@ -7,6 +7,14 @@ spring:
     hibernate:
       ddl-auto: update
 
+bpm:
+  security:
+    jwt:
+      # Public development placeholder requested by the user; replace via .env.
+      secret-key: ${JWT_SECRET_KEY:dev-only-bpm-jwt-secret-change-before-deploy-2026}
+    cors:
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+
 # Dev only: let Flowable create/update its own tables without migrations.
 flowable:
   database-schema-update: "true"

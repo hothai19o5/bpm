@@ -79,7 +79,7 @@ Mọi dòng dưới đây là kịch bản phải thực hiện sau khi có tín
 
 | AC | Actor/đầu vào | Thao tác | Kết quả cần kiểm chứng |
 | --- | --- | --- | --- |
-| AC-01–AC-02 | NV1 ACTIVE; user INACTIVE; tài khoản có mật khẩu tạm | Login, đổi mật khẩu tạm, gọi quản trị bằng NV1; thử lại sau khóa/idle timeout 30 phút | Chỉ ACTIVE đúng quyền thao tác được; bắt buộc đổi mật khẩu tạm; phiên cũ bị chặn sau khóa/hết hạn; nhân viên không dùng API quản trị. |
+| AC-01–AC-02 | NV1 ACTIVE; user INACTIVE; tài khoản có mật khẩu tạm | Login, đổi mật khẩu tạm, gọi quản trị bằng NV1; thử lại sau khóa, JWT exp hoặc thu hồi theo C-18 | Chỉ ACTIVE đúng quyền thao tác được; bắt buộc đổi mật khẩu tạm; token cũ bị chặn sau khóa/hết hạn/thu hồi; nhân viên không dùng API quản trị. |
 | AC-03–AC-04 | AD, mua sắm có XML/DI và metadata | Thiết kế → lưu → tải lại → sửa → lưu | Sơ đồ, IDs, assignment/action/form metadata không mất; form preview giữ kiểu/quyền/bố cục. |
 | AC-05–AC-07 | AD hoặc request bỏ qua UI; mô hình sai, script/service task, expression ngoài tập và XML có DTD/entity | Gọi validate/publish trực tiếp | Backend chặn trước deploy, chỉ ra lỗi; không thực thi mã hoặc truy cập tài nguyên ngoài. |
 | AC-08–AC-10 | AD và NV1; draft revision cũ, khóa publish lặp | NV1 thử publish; AD publish/retry; hai tab AD lưu/publish trên revision cũ | Chỉ AD công bố; retry một deployment; conflict không ghi đè. Hai tab cùng Admin kiểm tra được concurrency dù MVP chỉ có một người thiết kế. |

@@ -39,7 +39,7 @@ Với cổng mặc định, kiểm tra:
 Invoke-RestMethod http://localhost:8080/actuator/health
 ```
 
-Kết quả mong đợi là `status: UP`. Nếu đổi `APP_PORT`, dùng cổng đã cấu hình. Health endpoint kiểm tra trạng thái ứng dụng và DB; chưa phải bằng chứng nghiệp vụ/transaction/concurrency đã đúng. Chưa có màn hình hoặc API nghiệp vụ; truy cập `/` có thể yêu cầu đăng nhập theo Spring Security mặc định.
+Kết quả mong đợi là `status: UP`. Nếu đổi `APP_PORT`, dùng cổng đã cấu hình. Health endpoint kiểm tra trạng thái ứng dụng và DB; chưa phải bằng chứng nghiệp vụ/transaction/concurrency đã đúng. Security dùng JWT Bearer stateless; API bảo vệ trả JSON 401 khi thiếu token. Chưa có màn hình, login nghiệp vụ hoặc tài khoản mặc định.
 
 Xem log:
 
@@ -126,5 +126,21 @@ Storage S3-compatible sẽ được bổ sung trước chức năng đính kèm;
 - Báo cáo Surefire được lấy ra trước khi xóa container test.
 
 Người dùng đã xác nhận chạy xong Docker; kết quả test stack và kiểm tra persistence sẽ được ghi nhận riêng tại [P1.2 trong kế hoạch](docs/Enterprise-BPM-Implementation-Plan.md). Bước tiếp theo là P1.3 — cấu trúc module và hợp đồng API nền.
+
+## 7. Nền JWT security và API
+
+Đã bổ sung JWT Bearer tự phát HS256, CORS, global exception handler, response JSON
+chung, Clock và correlation/logging. Chưa chạy build/test; login/refresh/logout,
+thu hồi token và trạng thái tài khoản sẽ được hoàn thiện ở P2.1.
+
+Xem [hướng dẫn nền HTTP/security](docs/P1.3-API-Foundation.md) để biết vai trò file,
+hợp đồng response, cấu hình JWT và các lệnh kiểm tra.
+
+Dev CORS mặc định cho `http://localhost:5173` và `http://127.0.0.1:5173`; thay
+`CORS_ALLOWED_ORIGINS` trong `.env` khi frontend chạy origin khác. Client gửi
+`Authorization: Bearer <accessToken>`, không dùng cookie phiên để xác thực.
+Dev có secret mặc định theo yêu cầu; thay `JWT_SECRET_KEY` trong `.env` khi cần.
+`JWT_ISSUER=https://bpm.local`, `JWT_AUDIENCE=bpm-api`, `JWT_ACCESS_TOKEN_TTL=30m`
+là baseline dev. Ngoài dev/test phải cấp secret riêng.
 
 Tham chiếu: [Docker Compose health/dependency](https://docs.docker.com/compose/how-tos/startup-order/), [PostgreSQL official image — volume PostgreSQL 18](https://hub.docker.com/_/postgres), [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/endpoints.html), [Flowable schema configuration](https://www.flowable.com/open-source/docs/bpmn/ch05a-Spring-Boot).

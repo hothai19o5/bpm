@@ -89,13 +89,14 @@ Người dùng đã xác nhận quy mô **50 nhân sự**, cao điểm khoảng 
 | C-08 | Luồng và chính sách mua sắm tại mục 6.5 được xác nhận | Trưởng phòng → kế toán → giám đốc nếu tổng tiền đạt ngưỡng → mua hàng; VND nguyên đồng; bổ sung duyệt lại từ trưởng phòng; từ chối kết thúc; nhận đủ hàng và có chứng từ mới hoàn tất. Ngưỡng 50.000.000 VND theo C-13; self-approval theo C-09. |
 | C-09 | Quyền và giao việc tại mục 5.7 được xác nhận | Admin thiết kế/công bố, xem toàn bộ hồ sơ/lịch sử và phân công lại có lý do; nhân viên xem hồ sơ của mình/từng trực tiếp xử lý. Giao trực tiếp + queue/claim; không tự duyệt. Hoãn ủy quyền tự phục vụ, trưởng phòng chia việc, unclaim và thu hồi/hủy/mở lại sau khi gửi. |
 | C-10 | Biểu mẫu và phiên bản tại mục 5.8 được xác nhận | Một form chung chia nhóm, quyền trường theo bước, tập trường cơ bản; nháp được thiếu dữ liệu; published bất biến và hồ sơ chạy giữ version/ngưỡng cũ. Giữ nháp cũ khi chuyển bản; hoãn bảng nhiều dòng, công thức tùy ý, nguồn dữ liệu ngoài và bố cục phức tạp. |
-| C-11 | Chính sách nền và mục tiêu vận hành tại mục 13.4 được xác nhận | Session server, timeout không hoạt động 30 phút; tài khoản do Admin quản lý; thông báo trong ứng dụng; deadline ngày lịch/UTC+7; giới hạn tệp/bình luận; không tự xóa dữ liệu. Backup hằng ngày, mục tiêu RPO 24 giờ/RTO 4 giờ cần kiểm chứng. Quy mô/tải theo C-14; hạ tầng và thời hạn lưu giữ cụ thể hoàn thiện theo mốc vận hành. |
+| C-11 | Chính sách nền và mục tiêu vận hành tại mục 13.4 được xác nhận | Cơ chế session ban đầu được C-18 thay bằng JWT Bearer. Giữ tài khoản do Admin quản lý, thông báo trong ứng dụng, deadline ngày lịch/UTC+7, giới hạn tệp/bình luận và không tự xóa dữ liệu. Backup hằng ngày, mục tiêu RPO 24 giờ/RTO 4 giờ cần kiểm chứng. Quy mô/tải theo C-14; hạ tầng và thời hạn lưu giữ cụ thể hoàn thiện theo mốc vận hành. |
 | C-12 | Bản đồ màn hình và kế hoạch nghiệm thu P0.6 được xác nhận | UI tiếng Việt, ưu tiên desktop/laptop, một trang chi tiết theo quyền, inbox hai tab, trạng thái lỗi/conflict/hết phiên rõ ràng; Admin có thêm khu vực quản trị. [Bản đồ UI và acceptance matrix](Enterprise-BPM-Phase-0-UX-Acceptance.md) là đầu vào triển khai, không phải kết quả test đã đạt. |
 | C-13 | Ngưỡng qua giám đốc là **50.000.000 VND** | Mẫu mua sắm dùng `amount >= 50000000`; bằng ngưỡng phải qua giám đốc. Ngưỡng thuộc version quy trình, thay đổi không tác động hồ sơ đang chạy. Người dùng xác nhận ngày 30/10/2026. |
 | C-14 | Quy mô nhỏ, **50 nhân sự**, cao điểm khoảng **500 request/giây** | Ghi nhận làm đầu vào/mục tiêu kiểm thử P8.5. Theo yêu cầu người dùng, không cần thảo luận sâu thêm về tải ở Phase 0; kỹ thuật hoàn thiện workload và tiêu chí đo trước khi chạy tải. Không coi đây là năng lực đã được chứng minh. |
 | C-15 | Bộ Java/Spring Boot/Flowable giữ nguyên theo `pom.xml`, đã được người dùng kiểm thử | Java 25, Spring Boot 4.1.2, Flowable 8.0.0. Người dùng xác nhận ngày 01/11/2026, không yêu cầu kiểm chứng lại tương thích. Kiểm thử nghiệp vụ, transaction và concurrency vẫn thuộc các bước tương ứng. |
 | C-16 | Project chạy trong Docker để cô lập môi trường | Backend và PostgreSQL chạy bằng Docker Compose; cấu hình mạng, dữ liệu và môi trường test được tách rõ. Storage bổ sung theo mốc triển khai tệp. |
 | C-17 | Giai đoạn dev chưa dùng database migration | Không đưa Flyway/Liquibase hoặc viết migration thành đầu việc bắt buộc khi dev. Cấu hình cơ chế quản lý schema dev/test và cách dựng lại dữ liệu; chính sách thay đổi schema trước pilot/production được xử lý ở mốc vận hành. Quyết định này khác với migration instance quy trình. |
+| C-18 | Người dùng chọn JWT Bearer do BPM tự phát, không dùng session security | Xác nhận ngày 01/11/2026, thay phần authentication session của C-11. Dùng thư viện JWT trong hệ sinh thái Spring/Java; HS256 là baseline kỹ thuật, secret mặc định dev theo yêu cầu và người dùng sẽ thay sau. Access token TTL dev mặc định 30 phút từ lúc phát, không phải idle timeout. API login/refresh/logout và thu hồi khi khóa tài khoản hoàn thiện tại P2.1. |
 
 ### 2.2. Cơ sở đặc tả từ thảo luận
 
@@ -107,7 +108,7 @@ Người dùng đã xác nhận quy mô **50 nhân sự**, cao điểm khoảng 
 | B-04 | Database | PostgreSQL cho dữ liệu ứng dụng và dữ liệu engine. |
 | B-05 | File storage | MinIO hoặc dịch vụ tương thích S3; không lưu nội dung file lớn trong process variables. |
 | B-06 | Biểu mẫu | JSON Schema có mở rộng cho bố cục, trường hiển thị và quyền theo bước. |
-| B-07 | Authentication | Spring Security; session server và vòng đời tài khoản đã chốt tại C-11/mục 13.4; SSO hoãn theo C-07. |
+| B-07 | Authentication | Spring Security JWT Bearer stateless do BPM tự phát theo C-18; vòng đời tài khoản giữ theo C-11/mục 13.4; SSO hoãn theo C-07. |
 | B-08 | Authorization | RBAC kết hợp cơ cấu tổ chức, phạm vi hồ sơ/task và quyền theo trường. |
 | B-09 | Transaction | Dữ liệu nghiệp vụ và Flowable dùng cùng datasource/transaction manager phù hợp để commit hoặc rollback cùng nhau. |
 | B-10 | Phiên bản | Bản đã công bố bất biến; hồ sơ gắn với phiên bản quy trình và biểu mẫu cụ thể. |
@@ -817,7 +818,7 @@ Các endpoint dưới đây là **chi tiết bổ sung B**, không phải toàn 
 | Thông báo | `POST /api/v1/notifications/{id}/read` | Đánh dấu thông báo của chính mình đã đọc. |
 | Audit | `GET /api/v1/audit-events` | Tra cứu theo quyền và phạm vi kiểm toán. |
 
-CRUD quản trị nhân sự, phòng ban, vai trò và quyền cần có API tương ứng; chỉ mô tả chức năng ở đây để tránh coi một bộ tên route chưa review là đã chốt. API đăng nhập/session phụ thuộc lựa chọn authentication ở O-09. API phân công lại, ủy quyền hoặc hủy hồ sơ chỉ được chốt sau chính sách tương ứng.
+CRUD quản trị nhân sự, phòng ban, vai trò và quyền cần có API tương ứng; chỉ mô tả chức năng ở đây để tránh coi một bộ tên route chưa review là đã chốt. API đăng nhập/refresh/logout dùng JWT tự phát theo C-18/O-09, triển khai tại P2.1. API phân công lại, ủy quyền hoặc hủy hồ sơ chỉ được chốt sau chính sách tương ứng.
 
 ### 10.4. Payload minh họa
 
@@ -868,7 +869,7 @@ Content-Type: application/json
 | HTTP/mã đề xuất | Trường hợp |
 | --- | --- |
 | `400 INVALID_REQUEST` | Payload không đọc được hoặc sai cấu trúc. |
-| `401 UNAUTHENTICATED` | Chưa có phiên xác thực hợp lệ. |
+| `401 UNAUTHENTICATED` | Bearer token thiếu, không hợp lệ hoặc hết hạn. |
 | `403 FORBIDDEN` | Thiếu quyền hành động hoặc phạm vi. |
 | `404 NOT_FOUND` | Không tồn tại; có thể dùng cho tài nguyên ngoài phạm vi để hạn chế lộ thông tin theo chính sách nhất quán. |
 | `409 TASK_CONFLICT` | Task đã được nhận/hoàn thành bởi request khác hoặc không còn trạng thái phù hợp. |
@@ -980,7 +981,7 @@ Quyền ứng dụng thông thường không được sửa/xóa audit. Thời h
 - Kiểm tra quyền ở server cho hồ sơ, task, từng trường, tệp và các API tra cứu/danh sách.
 - Kiểm soát XML/expressions như mục 9; danh tính designer không phải quyền chạy mã trên server.
 - TLS khi triển khai thật; không để engine admin, PostgreSQL hoặc MinIO bucket public ngoài ý muốn.
-- Dùng session server theo C-11; bảo vệ CSRF, cookie phiên có thuộc tính phù hợp và TLS khi triển khai thật. Logout/khóa tài khoản phải vô hiệu phiên; không chỉ xóa trạng thái giao diện.
+- Dùng JWT Bearer tự phát theo C-18, chỉ nhận access token qua Authorization header; không dùng HttpSession/cookie để xác thực. Kiểm tra chữ ký, issuer, audience và thời hạn; TLS khi triển khai thật. Logout/khóa tài khoản phải có cơ chế thu hồi/kiểm tra trạng thái ở server; không coi xóa token phía UI là đã vô hiệu token đã cấp. Nếu bổ sung cookie refresh token phải đánh giá CSRF cho cơ chế đó.
 - Tệp có giới hạn kích thước/loại và tên an toàn; URL ký có thời hạn ngắn. Nhu cầu quét malware cần chốt theo loại tài liệu.
 - Bí mật cấu hình nằm ngoài source code; log không chứa mật khẩu, token hoặc URL ký còn hiệu lực nếu có thể tránh.
 - Không xóa cứng cấu hình/danh tính đang được hồ sơ hoặc audit tham chiếu.
@@ -1001,8 +1002,8 @@ Người dùng xác nhận các chính sách sau trong thảo luận Phase 0 ng�
 
 | Nội dung | Quy tắc đã chốt |
 | --- | --- |
-| Đăng nhập | Tài khoản nội bộ, phiên đăng nhập phía server; hết phiên sau 30 phút không hoạt động. |
-| Tài khoản | Admin tạo/khóa/đặt lại mật khẩu; nhân viên tự đổi mật khẩu. Bắt buộc đổi mật khẩu tạm lần đầu. Khóa tài khoản vô hiệu các phiên hiện có. |
+| Đăng nhập | Cập nhật C-18 ngày 01/11/2026: JWT Bearer do BPM tự phát, security stateless. TTL access token dev mặc định 30 phút từ lúc phát, cấu hình được; không dùng idle timeout session. Login/refresh/logout hoàn thiện tại P2.1. |
+| Tài khoản | Admin tạo/khóa/đặt lại mật khẩu; nhân viên tự đổi mật khẩu. Bắt buộc đổi mật khẩu tạm lần đầu. Khi khóa tài khoản phải chặn token đã cấp bằng kiểm tra trạng thái/token version hoặc cơ chế revoke phù hợp; chưa coi verify chữ ký/exp là đã đáp ứng. |
 | Thông báo | Trong ứng dụng: việc mới, cần bổ sung, từ chối, hoàn tất và ngoại lệ cho Admin; có đã đọc/chưa đọc. Hoãn email và thông báo đẩy trình duyệt. |
 | Deadline | Admin cấu hình thời lượng từng bước; giờ/ngày lịch từ lúc tạo task, gồm cuối tuần; hiển thị giờ Việt Nam UTC+7. Phân công lại giữ hạn, lượt duyệt mới sau bổ sung có hạn mới. |
 | Quá hạn | Đánh dấu và lọc; không tự duyệt, chuyển cấp hoặc kết thúc. |
@@ -1017,7 +1018,7 @@ Người dùng xác nhận các chính sách sau trong thảo luận Phase 0 ng�
 - O-12: IT vận hành cung cấp môi trường triển khai, nơi lưu backup, lịch chạy, retention backup, người hỗ trợ và runbook trước P9.1–P9.2. Mục tiêu RPO/RTO chưa phải kết quả đã đạt.
 - O-16: người dùng/chủ dữ liệu cùng IT chốt retention hồ sơ/tệp/audit, nhu cầu quét malware và audit nâng cao trước dùng dữ liệu thật. Không tự xem quét malware là đã được đưa vào hoặc hoãn.
 
-Cơ sở triển khai session/CSRF: [Spring Security session management](https://docs.spring.io/spring-security/reference/servlet/authentication/session-management.html), [CSRF protection](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html). Các tài liệu này hỗ trợ cơ chế kỹ thuật; timeout và các giới hạn trên là quyết định sản phẩm đã được người dùng xác nhận.
+Cơ sở triển khai JWT theo C-18: [Spring Security JWT Resource Server](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html), [Bearer token](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/bearer-tokens.html). Secret mặc định chỉ phục vụ dev theo yêu cầu; các mục tiêu phục hồi/giới hạn nghiệp vụ khác của C-11 giữ nguyên.
 
 ## 14. Kiểm thử và acceptance criteria
 
@@ -1120,7 +1121,7 @@ Các khuyến nghị là điểm khởi đầu để thảo luận. Tài liệu 
 | O-06 | Bổ sung quay lại bước nào | **Đã chốt cho mẫu mua sắm:** duyệt lại từ trưởng phòng sau bổ sung; C-08/mục 6.5. | Người dùng đã xác nhận | Đã chốt tại P0.2. |
 | O-07 | Thu hồi/hủy/mở lại/unclaim | **Đã chốt:** cho xóa nháp của mình; hoãn thu hồi/hủy/mở lại sau gửi và unclaim. C-09. | Người dùng đã xác nhận | Đã chốt tại P0.3. |
 | O-08 | Tập trường, schema dialect, form theo bước | **Đã chốt chính sách:** một form chia nhóm, tập trường, quyền, validation theo action và chuyển nháp tại C-10/mục 5.8. **Còn mở kỹ thuật:** schema dialect, validator, field ID/schema/UI schema và form binding mẫu. | Kỹ thuật | Trước xây form builder và binding/publish. |
-| O-09 | Authentication | **Đã chốt chính sách:** session server, idle timeout 30 phút; Admin quản lý tài khoản, đổi mật khẩu tạm và vô hiệu phiên khi khóa. SSO hoãn. C-11/mục 13.4. | Người dùng đã xác nhận | Đã chốt tại P0.5; hiện thực trước P2.1. |
+| O-09 | Authentication | **Đã chốt lại tại C-18:** JWT Bearer do BPM tự phát, không session. Admin quản lý tài khoản, đổi mật khẩu tạm và chặn token cũ khi khóa; SSO hoãn. Token issuer/decoder nền đã có; login/refresh/logout/revoke và ACTIVE check còn triển khai. | Người dùng đã xác nhận | Cập nhật ngày 01/11/2026; hoàn thiện tại P2.1 trước dùng nghiệp vụ. |
 | O-10 | Thông báo, email và mức độ tin cậy | **Đã chốt phạm vi:** in-app, đã đọc/chưa đọc, việc mới/bổ sung/từ chối/hoàn tất/ngoại lệ; hoãn email và browser push. C-11. Không phát thông báo thành công cho giao dịch rollback. | Người dùng đã xác nhận + kỹ thuật | Chính sách chốt tại P0.5; hợp đồng giao dịch trước P6.6. |
 | O-11 | Deadline, lịch làm việc và timezone | **Đã chốt:** giờ/ngày lịch từ lúc tạo task, gồm cuối tuần; UTC+7; reassign giữ hạn, lượt duyệt mới có hạn mới; không tự duyệt/chuyển cấp/kết thúc. C-11. | Người dùng đã xác nhận | Đã chốt tại P0.5. |
 | O-12 | Hạ tầng, backup, phục hồi và hỗ trợ | **Đã chốt mục tiêu:** backup DB/tệp hằng ngày, RPO 24 giờ/RTO 4 giờ, diễn tập trước pilot. **Còn mở:** môi trường, nơi/lịch lưu, retention backup, người hỗ trợ/runbook. C-11/mục 13.4. | IT vận hành | Trước P9.1–P9.2; phải kiểm chứng mục tiêu trước pilot. |
