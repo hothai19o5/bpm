@@ -1,0 +1,48 @@
+# Standalone opt-in P1.6 stack. Never merge with dev/test Compose files.
+name: bpm-p16-restart
+
+services:
+  tests:
+    build:
+      context: .
+      target: test
+    command: ["sh", "./mvnw", "--batch-mode", "--no-transfer-progress", "clean", "test", "-Dtest=P16RestartPersistenceTest"]
+    environment:
+      SPRING_PROFILES_ACTIVE: test
+      TEST_DATABASE_URL: jdbc:postgresql://postgres:5432/bpm_test
+      TEST_DATABASE_USERNAME: bpm_test
+      TEST_DATABASE_PASSWORD: bpm-restart-test-only
+      P16_RESTART_STAGE: ${P16_RESTART_STAGE:?Use scripts/Verify-P16Restart.ps1}
+      P16_RESTART_ID: ${P16_RESTART_ID:?Use scripts/Verify-P16Restart.ps1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - maven-cache:/root/.m2
+    networks:
+      - restart-test
+
+  postgres:
+    image: postgres:18.6
+    environment:
+      POSTGRES_DB: bpm_test
+      POSTGRES_USER: bpm_test
+      POSTGRES_PASSWORD: bpm-restart-test-only
+    # Unlike compose.test.yaml this DB must survive a container recreate.
+    volumes:
+      - restart-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bpm_test -d bpm_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - restart-test
+
+volumes:
+  restart-data:
+  maven-cache:
+
+networks:
+  restart-test:

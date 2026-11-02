@@ -1,7 +1,7 @@
 # Enterprise BPM — Kế hoạch triển khai MVP theo phase
 
 **Ngày lập:** 30/10/2026.  
-**Trạng thái:** Chính sách và trải nghiệm P0.1–P0.6 đã được người dùng xác nhận; Phase 0 còn đầu vào và hợp đồng kỹ thuật cần hoàn thiện theo mục 4. Ngày 02/11/2026, người dùng xác nhận test và build/kiểm tra dev thành công, chốt P1.4/P1.5; Phase 1 còn P1.6.
+**Trạng thái:** Chính sách và trải nghiệm P0.1–P0.6 đã được người dùng xác nhận; Phase 0 còn đầu vào và hợp đồng kỹ thuật cần hoàn thiện theo mục 4. Ngày 02/11/2026, người dùng xác nhận test và build/kiểm tra dev thành công, chốt P1.4/P1.5; P1.6 đã có code kiểm chứng, còn chờ người dùng chạy build/test và xác nhận.
 
 **Nguồn nghiệp vụ:** [Enterprise-BPM-MVP-Specification.md](Enterprise-BPM-MVP-Specification.md).  
 **Nguồn giao diện:** 4 ảnh trong [concept-ui](../concept-ui/).
@@ -195,6 +195,22 @@ hai nhánh, claim/complete đúng người, history, version pinning và lỗi �
 dev thành công; chốt để chuyển sang P1.6. Agent không chạy lại. RBAC/assignment nghiệp vụ ở P2/
 Phase 5; rollback JPA + engine, concurrency và restart vẫn thuộc P1.6. Chi tiết và
 lệnh nghiệm thu tại [hướng dẫn P1.4/P1.5](P1.4-P1.5-Verification.md).
+
+### P1.6 — Transaction, concurrency và restart
+
+**Tiến độ code ngày 02/11/2026:** Đã bổ sung kiểm tra wiring cùng JPA transaction
+manager/DataSource; test rollback sau JPA flush + start/claim/complete và khi engine
+lỗi. Hai worker có transaction/connection PostgreSQL riêng kiểm tra claim/complete
+cạnh tranh, chỉ kết quả thắng và bản ghi JPA tương ứng được commit. Stack restart
+riêng giữ named volume test; script chạy hai JVM prepare/resume, recreate DB và
+runner giữa hai lượt, kiểm tra direct assignee, queue chưa claim/đã claim và tiếp
+tục hoàn thành task/history. Fixture/entity chỉ trong test, không thêm API runtime
+hoặc schema nghiệp vụ vào dev.
+
+**Chưa chạy compile/build/test/Docker và chưa chốt P1.6.** Agent chỉ rà soát tĩnh;
+người dùng chạy theo [hướng dẫn P1.6](P1.6-Verification.md), gồm suite thường và
+kịch bản restart riêng. Nếu thất bại phải xử lý và kiểm chứng lại trước khi chuyển
+Phase 2.
 
 ## 6. Phase 2 — Danh tính, tổ chức, phân quyền và khung UI
 

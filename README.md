@@ -105,7 +105,9 @@ chạy test thành công ngày 02/11/2026 sau khi bổ sung Boot security test s
 Guard yêu cầu chỉ profile `test`, DB/user `bpm_test`, URL dạng
 `jdbc:postgresql://<host>:<port>/bpm_test` không có query parameters; kiểm tra lại
 metadata DataSource trước schema. Test DB dùng chung annotation `@IsolatedPostgresTest`.
-Chưa có kiểm thử rollback JPA + engine, concurrency hoặc restart của P1.6.
+Đã bổ sung test source rollback JPA + engine và claim/complete cạnh tranh của
+P1.6; restart dùng stack riêng có volume bền vững. Chưa chạy các kiểm chứng mới;
+xem [hướng dẫn P1.6](docs/P1.6-Verification.md).
 
 Nếu chạy test từ IDE thay vì Docker runner, cần tự cung cấp `TEST_DATABASE_URL`,
 `TEST_DATABASE_USERNAME=bpm_test`, `TEST_DATABASE_PASSWORD` trỏ tới DB PostgreSQL
@@ -177,5 +179,18 @@ tra dev thành công sau khi sửa dependency `spring-boot-starter-security-test
 Agent không chạy lại; chưa có kết quả GitHub Actions. Xem [hướng dẫn nghiệm thu và code map](docs/P1.4-P1.5-Verification.md)
 để chạy lại khi cần. Bước tiếp theo P1.6 kiểm chứng rollback JPA + engine,
 claim/complete cạnh tranh và restart khi task đang chờ.
+
+## 9. P1.6 — transaction, concurrency và restart
+
+Suite ở mục 4 bao gồm test rollback JPA + Flowable và claim/complete cạnh tranh.
+Kiểm chứng restart chạy riêng trên stack PostgreSQL cách ly với dev:
+
+```powershell
+./scripts/Verify-P16Restart.ps1
+```
+
+**Chưa chạy build/test/Docker cho thay đổi P1.6; chưa chốt P1.6.** Người dùng chạy
+theo [hướng dẫn nghiệm thu P1.6](docs/P1.6-Verification.md), gồm lệnh, kết quả mong
+đợi và cách kiểm tra báo cáo.
 
 Tham chiếu: [Docker Compose health/dependency](https://docs.docker.com/compose/how-tos/startup-order/), [PostgreSQL official image — volume PostgreSQL 18](https://hub.docker.com/_/postgres), [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/endpoints.html), [Flowable schema configuration](https://www.flowable.com/open-source/docs/bpmn/ch05a-Spring-Boot).
