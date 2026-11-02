@@ -1,0 +1,2 @@
+# Test classpath only: guard runs before schema initializers.
+org.springframework.boot.EnvironmentPostProcessor=com.x.bpm.support.TestDatabaseEnvironmentGuard

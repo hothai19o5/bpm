@@ -11,6 +11,9 @@ spring:
 # The isolated PostgreSQL test container is temporary; no dev tables are touched.
 flowable:
   database-schema-update: "true"
+  history-level: audit
+  check-process-definitions: false
+  async-executor-activate: false
 
 bpm:
   security:

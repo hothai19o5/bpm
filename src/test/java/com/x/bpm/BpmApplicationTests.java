@@ -2,17 +2,15 @@ package com.x.bpm;
 
 import java.sql.SQLException;
 import javax.sql.DataSource;
+import com.x.bpm.support.IsolatedPostgresTest;
 
 import org.junit.jupiter.api.Test;
 import org.flowable.engine.ProcessEngine;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
-@ActiveProfiles("test")
+@IsolatedPostgresTest
 class BpmApplicationTests {
 
     @Autowired
