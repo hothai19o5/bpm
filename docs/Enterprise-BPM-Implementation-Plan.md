@@ -216,6 +216,10 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 **Mục tiêu:** Có nền quyền và giao diện nhất quán trước khi thêm designer và hồ sơ.
 
+**Hướng dẫn P2.1:** [Tự triển khai đăng nhập và vòng đời JWT](P2.1-Manual-Implementation-Guide.md) có code map hiện tại, schema/API đề xuất, thứ tự thực hiện và checklist kiểm chứng. Đây là hướng dẫn, chưa phải code hoặc kết quả nghiệm thu P2.1.
+
+**Business model/schema ngày 03/11/2026:** Đã bổ sung model JPA cho 21 bảng nghiệp vụ, chú thích tiếng Việt và test source. Người dùng xác nhận build, test và dev thành công; chốt bước model/schema. Agent không chạy lại. Xem [mô hình dữ liệu](Business-Data-Model.md); các use case/API P2.1 và các phase sau vẫn triển khai riêng.
+
 | Bước | Mô tả việc cần làm | Yêu cầu đầu ra |
 | --- | --- | --- |
 | **P2.1 — Đăng nhập và vòng đời JWT** | Xây API login/refresh/logout, danh tính hiện tại và thu hồi token theo C-18. Dùng token issuer/decoder nền đã có; kiểm tra ACTIVE/INACTIVE, mật khẩu tạm, trạng thái/quyền hiện tại và cơ chế chặn token cũ. Không dựng HttpSession security. | Có API xác thực để nối màn đăng nhập P2.5; token hết hạn, logout hoặc tài khoản bị khóa không tiếp tục thao tác. Không coi xóa token ở UI là server revoke. Mật khẩu/secret không trả về; token chỉ trả ở auth response được phép và không xuất hiện trong log/API danh sách. |

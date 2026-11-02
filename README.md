@@ -67,6 +67,11 @@ Với project mặc định `bpm-dev`, dữ liệu nằm trong volume `bpm-dev_p
 
 `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` được PostgreSQL áp dụng khi khởi tạo volume trống. Đổi các biến đó trong `.env` không tự sửa tài khoản/database đã tồn tại trong volume; cần điều chỉnh DB hiện có hoặc reset dev có chủ đích.
 
+Khi khởi tạo database trống, script `docker/postgres/init/01-create-schemas.sql`
+tạo hai schema thuộc database user hiện tại: `flowable` chứa bảng engine và
+`business` chứa bảng JPA của ứng dụng. Script init chỉ chạy với data directory
+trống; volume dev cũ cần được reset bằng lệnh bên dưới để nhận cấu trúc này.
+
 **Chỉ khi muốn xóa toàn bộ database dev để tạo lại từ đầu:**
 
 ```powershell
@@ -103,7 +108,8 @@ Nếu Maven lỗi trước khi chạy Surefire, có thể chưa có thư mục b
 và quy trình Flowable tối thiểu qua adapter (P1.4/P1.5). Người dùng đã xác nhận
 chạy test thành công ngày 02/11/2026 sau khi bổ sung Boot security test starter.
 Guard yêu cầu chỉ profile `test`, DB/user `bpm_test`, URL dạng
-`jdbc:postgresql://<host>:<port>/bpm_test` không có query parameters; kiểm tra lại
+`jdbc:postgresql://<host>:<port>/bpm_test?currentSchema=flowable,business,public`;
+không chấp nhận query parameter khác và kiểm tra lại
 metadata DataSource trước schema. Test DB dùng chung annotation `@IsolatedPostgresTest`.
 Đã bổ sung test source rollback JPA + engine và claim/complete cạnh tranh của
 P1.6; restart dùng stack riêng có volume bền vững. Người dùng đã xác nhận P1.6
@@ -111,16 +117,17 @@ build/test thành công ngày 02/11/2026; xem [hướng dẫn P1.6](docs/P1.6-Ve
 
 Nếu chạy test từ IDE thay vì Docker runner, cần tự cung cấp `TEST_DATABASE_URL`,
 `TEST_DATABASE_USERNAME=bpm_test`, `TEST_DATABASE_PASSWORD` trỏ tới DB PostgreSQL
-test riêng tên `bpm_test`. Profile test không có fallback về DB dev. Không chạy
+test riêng tên `bpm_test`; URL phải có đúng `currentSchema` như trên và database
+phải có sẵn hai schema. Profile test không có fallback về DB dev. Không chạy
 nhiều test runner trên cùng DB; xem [hướng dẫn P1.4/P1.5](docs/P1.4-P1.5-Verification.md).
 
 ## 5. Cấu hình ứng dụng và schema
 
 | File | Chức năng |
 | --- | --- |
-| `application.yaml` | Cấu hình chung, tắt auto-update schema ngoài profile được chọn, graceful shutdown, chỉ expose health endpoint. |
-| `application-dev.yaml` | Datasource từ các biến `DB_*`; JPA `ddl-auto=update`, Flowable `database-schema-update=true`. |
-| `src/test/resources/application-test.yaml` | Datasource riêng từ `TEST_DATABASE_*`; JPA `create-drop`, Flowable tạo/cập nhật schema trong DB tạm. Không đóng profile test vào JAR runtime. |
+| `application.yaml` | Cấu hình chung, ánh xạ JPA vào schema `business`; Flowable dùng schema đầu tiên trong search path là `flowable`; tắt auto-update ngoài profile được chọn, graceful shutdown và health endpoint. Không đặt `flowable.database-schema` vì Flowable sẽ thu hẹp schema trên connection transaction dùng chung. |
+| `application-dev.yaml` | Datasource từ các biến `DB_*` với search path `flowable,business,public`; JPA `ddl-auto=update`, Flowable `database-schema-update=true`. |
+| `src/test/resources/application-test.yaml` | Datasource riêng từ `TEST_DATABASE_*` với cùng search path; JPA `create-drop` trong `business`, Flowable tạo/cập nhật bảng trong `flowable`. Không đóng profile test vào JAR runtime. |
 
 Không thêm Flyway/Liquibase hoặc migration script trong giai đoạn dev. Tự cập nhật schema dev hỗ trợ vòng lặp phát triển; đổi tên/xóa trường hoặc thay đổi dữ liệu vẫn có thể cần reset dev hoặc xử lý dữ liệu có chủ đích. Chính sách nâng cấp schema cho dữ liệu thật hoàn thiện trước pilot/production.
 
@@ -171,7 +178,8 @@ API login/refresh/logout và trạng thái tài khoản sẽ được nối ở 
 `.github/workflows/backend.yml`. Port/DTO ứng dụng và adapter Flowable hỗ trợ
 deploy/start/query/claim/complete/history; fixture chỉ nằm trong test resources.
 Test source bao phủ hai nhánh XOR, direct assignee, candidate user/group queue,
-definition ID pinning và lịch sử. Chưa bật API runtime, chưa thêm bảng nghiệp vụ.
+definition ID pinning và lịch sử. Chưa bật API runtime. Tại thời điểm chốt
+P1.4/P1.5 chưa có bảng nghiệp vụ; model bổ sung sau đó được mô tả ở mục 10.
 
 **P1.4/P1.5 đã được người dùng xác nhận đạt ngày 02/11/2026:** test và build/kiểm
 tra dev thành công sau khi sửa dependency `spring-boot-starter-security-test`.
@@ -192,5 +200,18 @@ Kiểm chứng restart chạy riêng trên stack PostgreSQL cách ly với dev:
 Agent không chạy lại; chưa có kết quả GitHub Actions. Bước tiếp theo là P2.1 — đăng
 nhập và vòng đời JWT. [Hướng dẫn nghiệm thu P1.6](docs/P1.6-Verification.md) giữ các
 lệnh, kết quả mong đợi và cách kiểm tra báo cáo để chạy lại khi cần.
+
+## 10. Business data model
+
+Đã thêm mapping JPA cho 21 bảng identity/RBAC, phiên đăng nhập/refresh, tổ chức,
+process/form version, hồ sơ/tệp/bình luận/quyền bổ sung, task action log, audit
+và thông báo. Dev tiếp tục tự tạo/cập nhật schema bằng Hibernate; không thêm
+migration. Chưa thêm API nghiệp vụ hoặc nối authentication với các bảng mới.
+
+Đã bổ sung test source cho schema, JSONB, unique/FK, revision và các CHECK.
+**Ngày 03/11/2026, người dùng xác nhận build, test và dev thành công; chốt bước
+business model/schema.** Agent không chạy lại; các lệnh ở mục 2 và 4 dùng khi
+cần kiểm chứng lại. Kết quả này chưa chốt nghiệp vụ đăng nhập/vòng đời JWT P2.1.
+Xem [mô hình dữ liệu và hướng dẫn kiểm chứng](docs/Business-Data-Model.md).
 
 Tham chiếu: [Docker Compose health/dependency](https://docs.docker.com/compose/how-tos/startup-order/), [PostgreSQL official image — volume PostgreSQL 18](https://hub.docker.com/_/postgres), [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/endpoints.html), [Flowable schema configuration](https://www.flowable.com/open-source/docs/bpmn/ch05a-Spring-Boot).
