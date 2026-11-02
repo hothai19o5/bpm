@@ -2,7 +2,7 @@
 
 Cấu hình dùng Java 25, Spring Boot 4.1.2, Flowable 8.0.0 theo `pom.xml` và PostgreSQL 18.6. Backend, build và test chạy trong container; máy host cần Docker Desktop ở chế độ Linux containers và Docker Compose v2 có hỗ trợ `up --wait`.
 
-**Trạng thái ngày 02/11/2026:** Người dùng xác nhận test và build/kiểm tra dev thành công sau khi sửa dependency security test; chốt P1.4/P1.5 và chuyển sang P1.6. Chưa có xác nhận riêng về persistence qua recreate/restart hoặc kết quả GitHub Actions. Các lần build/test tiếp theo tiếp tục do người dùng chạy.
+**Trạng thái ngày 02/11/2026:** Người dùng xác nhận P1.4/P1.5 và sau đó P1.6 đã build/test thành công; chốt P1.6 để chuyển sang Phase 2, bắt đầu P2.1 — đăng nhập và vòng đời JWT. Agent không chạy lại; chưa có kết quả GitHub Actions. Các lần build/test tiếp theo tiếp tục do người dùng chạy.
 
 ## 1. Chuẩn bị lần đầu
 
@@ -106,8 +106,8 @@ Guard yêu cầu chỉ profile `test`, DB/user `bpm_test`, URL dạng
 `jdbc:postgresql://<host>:<port>/bpm_test` không có query parameters; kiểm tra lại
 metadata DataSource trước schema. Test DB dùng chung annotation `@IsolatedPostgresTest`.
 Đã bổ sung test source rollback JPA + engine và claim/complete cạnh tranh của
-P1.6; restart dùng stack riêng có volume bền vững. Chưa chạy các kiểm chứng mới;
-xem [hướng dẫn P1.6](docs/P1.6-Verification.md).
+P1.6; restart dùng stack riêng có volume bền vững. Người dùng đã xác nhận P1.6
+build/test thành công ngày 02/11/2026; xem [hướng dẫn P1.6](docs/P1.6-Verification.md).
 
 Nếu chạy test từ IDE thay vì Docker runner, cần tự cung cấp `TEST_DATABASE_URL`,
 `TEST_DATABASE_USERNAME=bpm_test`, `TEST_DATABASE_PASSWORD` trỏ tới DB PostgreSQL
@@ -138,9 +138,8 @@ Storage S3-compatible sẽ được bổ sung trước chức năng đính kèm;
 
 Người dùng đã xác nhận chạy xong Docker; kết quả test stack và kiểm tra persistence
 sẽ được ghi nhận riêng tại [P1.2 trong kế hoạch](docs/Enterprise-BPM-Implementation-Plan.md).
-Người dùng xác nhận test và build/kiểm tra dev thành công ngày 02/11/2026;
-P1.4/P1.5 đã chốt, bước tiếp theo là P1.6. Persistence qua recreate/restart vẫn
-cần kiểm chứng riêng.
+Người dùng xác nhận P1.4/P1.5 và sau đó P1.6 đã build/test thành công ngày
+02/11/2026; P1.6 đã chốt theo xác nhận này, bước tiếp theo là P2.1.
 
 ## 7. P1.3 — Module và hợp đồng API
 
@@ -177,8 +176,8 @@ definition ID pinning và lịch sử. Chưa bật API runtime, chưa thêm bả
 **P1.4/P1.5 đã được người dùng xác nhận đạt ngày 02/11/2026:** test và build/kiểm
 tra dev thành công sau khi sửa dependency `spring-boot-starter-security-test`.
 Agent không chạy lại; chưa có kết quả GitHub Actions. Xem [hướng dẫn nghiệm thu và code map](docs/P1.4-P1.5-Verification.md)
-để chạy lại khi cần. Bước tiếp theo P1.6 kiểm chứng rollback JPA + engine,
-claim/complete cạnh tranh và restart khi task đang chờ.
+để chạy lại khi cần. P1.6 kiểm chứng rollback JPA + engine, claim/complete cạnh
+tranh và restart khi task đang chờ; bước này cũng đã chốt theo xác nhận của người dùng.
 
 ## 9. P1.6 — transaction, concurrency và restart
 
@@ -189,8 +188,9 @@ Kiểm chứng restart chạy riêng trên stack PostgreSQL cách ly với dev:
 ./scripts/Verify-P16Restart.ps1
 ```
 
-**Chưa chạy build/test/Docker cho thay đổi P1.6; chưa chốt P1.6.** Người dùng chạy
-theo [hướng dẫn nghiệm thu P1.6](docs/P1.6-Verification.md), gồm lệnh, kết quả mong
-đợi và cách kiểm tra báo cáo.
+**P1.6 đã chốt ngày 02/11/2026 theo xác nhận build/test thành công của người dùng.**
+Agent không chạy lại; chưa có kết quả GitHub Actions. Bước tiếp theo là P2.1 — đăng
+nhập và vòng đời JWT. [Hướng dẫn nghiệm thu P1.6](docs/P1.6-Verification.md) giữ các
+lệnh, kết quả mong đợi và cách kiểm tra báo cáo để chạy lại khi cần.
 
 Tham chiếu: [Docker Compose health/dependency](https://docs.docker.com/compose/how-tos/startup-order/), [PostgreSQL official image — volume PostgreSQL 18](https://hub.docker.com/_/postgres), [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/endpoints.html), [Flowable schema configuration](https://www.flowable.com/open-source/docs/bpmn/ch05a-Spring-Boot).

@@ -1,7 +1,7 @@
 # Enterprise BPM — Kế hoạch triển khai MVP theo phase
 
 **Ngày lập:** 30/10/2026.  
-**Trạng thái:** Chính sách và trải nghiệm P0.1–P0.6 đã được người dùng xác nhận; Phase 0 còn đầu vào và hợp đồng kỹ thuật cần hoàn thiện theo mục 4. Ngày 02/11/2026, người dùng xác nhận test và build/kiểm tra dev thành công, chốt P1.4/P1.5; P1.6 đã có code kiểm chứng, còn chờ người dùng chạy build/test và xác nhận.
+**Trạng thái:** Chính sách và trải nghiệm P0.1–P0.6 đã được người dùng xác nhận; Phase 0 còn đầu vào và hợp đồng kỹ thuật cần hoàn thiện theo mục 4. Ngày 02/11/2026, người dùng xác nhận P1.4/P1.5 và sau đó P1.6 đã build/test thành công; chốt P1.6 để chuyển sang Phase 2. Agent không chạy lại build/test.
 
 **Nguồn nghiệp vụ:** [Enterprise-BPM-MVP-Specification.md](Enterprise-BPM-MVP-Specification.md).  
 **Nguồn giao diện:** 4 ảnh trong [concept-ui](../concept-ui/).
@@ -19,7 +19,7 @@ Hiện trạng đọc được trong repository:
 | Backend | Có entry point Spring Boot; `pom.xml` khai báo Java 25, Spring Boot 4.1.2 và Flowable 8.0.0. Người dùng xác nhận đã kiểm thử bộ phiên bản ngày 01/11/2026. | Giữ nguyên, không kiểm chứng lại tương thích; C-15. Còn chuẩn bị Docker và kiểm thử engine/nghiệp vụ theo các bước sau. |
 | Database local | `compose.yaml` dùng PostgreSQL 18.6, named volume và health check; backend chạy cùng stack Docker. | Đã chuẩn bị cấu hình ngày 01/11/2026; người dùng chạy build/khởi động để kiểm chứng kết nối và persistence. |
 | Cấu hình ứng dụng | Có profile dev/test, PostgreSQL datasource, schema tự quản lý trong dev, health endpoint và graceful shutdown. | Chưa có storage/auth nghiệp vụ; cấu hình runtime cần người dùng kiểm chứng. |
-| Kiểm thử | Có smoke test PostgreSQL `bpm_test`, JPA schema/seed và integration test Flowable qua adapter; có stack test riêng và cấu hình CI. | Người dùng xác nhận test và build/kiểm tra dev thành công ngày 02/11/2026. Rollback JPA + engine, concurrency và restart còn ở P1.6; chưa có kết quả GitHub Actions. |
+| Kiểm thử | Có smoke test PostgreSQL `bpm_test`, JPA schema/seed, integration test Flowable qua adapter và bộ kiểm chứng transaction/concurrency/restart P1.6; có stack test riêng và cấu hình CI. | Người dùng xác nhận P1.6 đã build/test thành công ngày 02/11/2026; chốt bước theo xác nhận này. Agent không chạy lại; chưa có kết quả GitHub Actions. |
 | Frontend | Chưa thấy mã frontend. | Cần dựng nền giao diện và các màn hình từ đầu. |
 | Nghiệp vụ | Chưa thấy module quy trình, biểu mẫu, hồ sơ, task hoặc tổ chức. | Không đánh dấu bất kỳ tính năng MVP nào là đã hoàn thành. |
 
@@ -207,10 +207,10 @@ runner giữa hai lượt, kiểm tra direct assignee, queue chưa claim/đã cl
 tục hoàn thành task/history. Fixture/entity chỉ trong test, không thêm API runtime
 hoặc schema nghiệp vụ vào dev.
 
-**Chưa chạy compile/build/test/Docker và chưa chốt P1.6.** Agent chỉ rà soát tĩnh;
-người dùng chạy theo [hướng dẫn P1.6](P1.6-Verification.md), gồm suite thường và
-kịch bản restart riêng. Nếu thất bại phải xử lý và kiểm chứng lại trước khi chuyển
-Phase 2.
+**P1.6 đã chốt ngày 02/11/2026 theo xác nhận của người dùng:** P1.6 đã build/test
+thành công, chuyển sang Phase 2; bước tiếp theo là P2.1 — đăng nhập và vòng đời JWT.
+Agent không chạy lại build/test; chưa có kết quả GitHub Actions. Các lệnh và tiêu
+chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification.md) để chạy lại khi cần.
 
 ## 6. Phase 2 — Danh tính, tổ chức, phân quyền và khung UI
 
