@@ -2,7 +2,7 @@
 
 Cấu hình dùng Java 25, Spring Boot 4.1.2, Flowable 8.0.0 theo `pom.xml` và PostgreSQL 18.6. Backend, build và test chạy trong container; máy host cần Docker Desktop ở chế độ Linux containers và Docker Compose v2 có hỗ trợ `up --wait`.
 
-**Trạng thái ngày 02/11/2026:** Người dùng xác nhận P1.4/P1.5 và sau đó P1.6 đã build/test thành công; chốt P1.6 để chuyển sang Phase 2, bắt đầu P2.1 — đăng nhập và vòng đời JWT. Agent không chạy lại; chưa có kết quả GitHub Actions. Các lần build/test tiếp theo tiếp tục do người dùng chạy.
+**Trạng thái ngày 03/11/2026:** Người dùng xác nhận P1.4/P1.5, P1.6 và business model/schema đã build/test thành công. P2.1a đã chốt hợp đồng đăng nhập và vòng đời JWT; bước tiếp theo là P2.1b — persistence port/adapter, password hashing và fixture dev/test. Agent không chạy lại; chưa có kết quả GitHub Actions. Các lần build/test tiếp theo tiếp tục do người dùng chạy.
 
 ## 1. Chuẩn bị lần đầu
 
@@ -213,5 +213,13 @@ migration. Chưa thêm API nghiệp vụ hoặc nối authentication với các 
 business model/schema.** Agent không chạy lại; các lệnh ở mục 2 và 4 dùng khi
 cần kiểm chứng lại. Kết quả này chưa chốt nghiệp vụ đăng nhập/vòng đời JWT P2.1.
 Xem [mô hình dữ liệu và hướng dẫn kiểm chứng](docs/Business-Data-Model.md).
+
+## 11. P2.1 — Hợp đồng xác thực
+
+**P2.1a đã chốt ngày 03/11/2026:** access token dùng `sid`/`ver`, refresh token
+opaque có hạn tuyệt đối 7 ngày và rotation/replay protection, quyền được đọc từ
+DB hiện tại, cùng policy mật khẩu 12–128 Unicode code point. Đây là thay đổi tài
+liệu nên không có build/test mới. Bước tiếp theo là P2.1b; xem
+[hướng dẫn P2.1](docs/P2.1-Manual-Implementation-Guide.md).
 
 Tham chiếu: [Docker Compose health/dependency](https://docs.docker.com/compose/how-tos/startup-order/), [PostgreSQL official image — volume PostgreSQL 18](https://hub.docker.com/_/postgres), [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/endpoints.html), [Flowable schema configuration](https://www.flowable.com/open-source/docs/bpmn/ch05a-Spring-Boot).

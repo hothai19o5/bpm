@@ -97,6 +97,7 @@ Người dùng đã xác nhận quy mô **50 nhân sự**, cao điểm khoảng 
 | C-16 | Project chạy trong Docker để cô lập môi trường | Backend và PostgreSQL chạy bằng Docker Compose; cấu hình mạng, dữ liệu và môi trường test được tách rõ. Storage bổ sung theo mốc triển khai tệp. |
 | C-17 | Giai đoạn dev chưa dùng database migration | Không đưa Flyway/Liquibase hoặc viết migration thành đầu việc bắt buộc khi dev. Cấu hình cơ chế quản lý schema dev/test và cách dựng lại dữ liệu; chính sách thay đổi schema trước pilot/production được xử lý ở mốc vận hành. Quyết định này khác với migration instance quy trình. |
 | C-18 | Người dùng chọn JWT Bearer do BPM tự phát, không dùng session security | Xác nhận ngày 01/11/2026, thay phần authentication session của C-11. Dùng thư viện JWT trong hệ sinh thái Spring/Java; HS256 là baseline kỹ thuật, secret mặc định dev theo yêu cầu và người dùng sẽ thay sau. Access token TTL dev mặc định 30 phút từ lúc phát, không phải idle timeout. API login/refresh/logout và thu hồi khi khóa tài khoản hoàn thiện tại P2.1. |
+| C-19 | Hợp đồng vòng đời token và mật khẩu P2.1 | Xác nhận ngày 03/11/2026: access token thêm `sid`/`ver`; refresh opaque 32 byte trở lên, lưu SHA-256 hash, hạn tuyệt đối 7 ngày, rotate một lần và replay thu hồi sid; quyền đọc từ DB hiện tại. Năm endpoint auth bắt buộc, `logout-all` tùy chọn. Mật khẩu mới dài 12–128 Unicode code point theo policy tại hướng dẫn P2.1. |
 
 ### 2.2. Cơ sở đặc tả từ thảo luận
 

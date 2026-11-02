@@ -2,7 +2,7 @@
 
 **Ngày:** 02/11/2026. **Cập nhật:** 03/11/2026. **Trạng thái:** Người dùng xác nhận build, test và dev thành công; chốt bước bổ sung business model/schema. Agent không chạy lại build/test. P2.1 và các phase nghiệp vụ tiếp theo chưa được chốt bởi kết quả này.
 
-Mô hình dựa trên mục 8 của [đặc tả MVP](Enterprise-BPM-MVP-Specification.md) và phần schema của [hướng dẫn P2.1](P2.1-Manual-Implementation-Guide.md). Tên bảng dùng số nhiều: `users`, `login_grants`, `refresh_credentials`, tương ứng các tên đề xuất `app_user`, `login_grant`, `refresh_credential` trong hướng dẫn P2.1.
+Mô hình dựa trên mục 8 của [đặc tả MVP](Enterprise-BPM-MVP-Specification.md) và phần schema của [hướng dẫn P2.1](P2.1-Manual-Implementation-Guide.md). P2.1a đã chốt dùng trực tiếp các bảng số nhiều `users`, `login_grants`, `refresh_credentials`; không tạo bảng auth song song.
 
 ## 1. Danh sách bảng
 

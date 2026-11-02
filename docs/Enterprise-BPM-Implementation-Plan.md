@@ -216,7 +216,7 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 **Mục tiêu:** Có nền quyền và giao diện nhất quán trước khi thêm designer và hồ sơ.
 
-**Hướng dẫn P2.1:** [Tự triển khai đăng nhập và vòng đời JWT](P2.1-Manual-Implementation-Guide.md) có code map hiện tại, schema/API đề xuất, thứ tự thực hiện và checklist kiểm chứng. Đây là hướng dẫn, chưa phải code hoặc kết quả nghiệm thu P2.1.
+**P2.1a đã chốt ngày 03/11/2026:** [Hướng dẫn đăng nhập và vòng đời JWT](P2.1-Manual-Implementation-Guide.md) ghi hợp đồng endpoint, token, refresh rotation/replay, password policy, code map và checklist kiểm chứng. Chưa có code nghiệp vụ hoặc kết quả nghiệm thu P2.1; bước tiếp theo là P2.1b — persistence port/adapter, password hashing và fixture dev/test.
 
 **Business model/schema ngày 03/11/2026:** Đã bổ sung model JPA cho 21 bảng nghiệp vụ, chú thích tiếng Việt và test source. Người dùng xác nhận build, test và dev thành công; chốt bước model/schema. Agent không chạy lại. Xem [mô hình dữ liệu](Business-Data-Model.md); các use case/API P2.1 và các phase sau vẫn triển khai riêng.
 
