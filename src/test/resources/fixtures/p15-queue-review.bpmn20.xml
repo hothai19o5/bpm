@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="https://bpm.local/test/p15">
+  <process id="p15_queue_review" name="P1.5 Queue Review" isExecutable="true">
+    <startEvent id="start"/>
+    <sequenceFlow id="toReview" sourceRef="start" targetRef="reviewTask"/>
+    <userTask id="reviewTask" name="Review request"
+              flowable:candidateUsers="${candidateUserId}"
+              flowable:candidateGroups="${candidateGroupId}"/>
+    <sequenceFlow id="toDecision" sourceRef="reviewTask" targetRef="decision"/>
+    <exclusiveGateway id="decision"/>
+    <sequenceFlow id="toApproved" sourceRef="decision" targetRef="approvedEnd">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${outcome == 'APPROVE'}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="toRejected" sourceRef="decision" targetRef="rejectedEnd">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${outcome == 'REJECT'}]]></conditionExpression>
+    </sequenceFlow>
+    <endEvent id="approvedEnd"/>
+    <endEvent id="rejectedEnd"/>
+  </process>
+</definitions>

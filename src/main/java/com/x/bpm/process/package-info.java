@@ -5,7 +5,8 @@
  * adapter.persistence sẽ hiện thực port, config sẽ lắp ghép dependency.
  * Việc tìm kiếm danh mục ứng dụng không phải truy vấn danh sách Flowable.
  *
- * <p>P1.5 mới hiện thực adapter engine. Mọi kiểu org.flowable phải ở adapter;
+ * <p>P1.5 có port application.engine và adapter.flowable cho deploy/start/query/history.
+ * Mọi kiểu org.flowable phải ở adapter;
  * không đưa chúng vào DTO công khai, policy hoặc use case.
  */
 package com.x.bpm.process;

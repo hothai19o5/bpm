@@ -2,7 +2,7 @@
 
 Cấu hình dùng Java 25, Spring Boot 4.1.2, Flowable 8.0.0 theo `pom.xml` và PostgreSQL 18.6. Backend, build và test chạy trong container; máy host cần Docker Desktop ở chế độ Linux containers và Docker Compose v2 có hỗ trợ `up --wait`.
 
-**Trạng thái:** Đã chuẩn bị cấu hình; người dùng xác nhận đã chạy xong Docker. Chưa có xác nhận riêng về kết quả test stack và kiểm tra persistence, nên chưa đánh dấu toàn bộ P1.2 hoàn thành. Các lần build/test tiếp theo tiếp tục do người dùng chạy.
+**Trạng thái ngày 02/11/2026:** Người dùng xác nhận test và build/kiểm tra dev thành công sau khi sửa dependency security test; chốt P1.4/P1.5 và chuyển sang P1.6. Chưa có xác nhận riêng về persistence qua recreate/restart hoặc kết quả GitHub Actions. Các lần build/test tiếp theo tiếp tục do người dùng chạy.
 
 ## 1. Chuẩn bị lần đầu
 
@@ -99,9 +99,18 @@ docker compose -p bpm-test -f compose.test.yaml down
 
 Nếu Maven lỗi trước khi chạy Surefire, có thể chưa có thư mục báo cáo; xem output hoặc `docker compose -p bpm-test -f compose.test.yaml logs tests` để biết lỗi. Volume `bpm-test_maven-cache` chỉ giữ dependency Maven, không chứa DB; có thể giữ cho lần chạy sau.
 
-Smoke test hiện tại yêu cầu profile `test`, xác nhận PostgreSQL/database `bpm_test` và truy vấn được bảng Flowable. Chưa có các bài kiểm thử business flow, rollback hoặc concurrency của P1.5–P1.6.
+Đã có test source cho smoke test PostgreSQL/Flowable, tạo schema JPA + seed kỹ thuật
+và quy trình Flowable tối thiểu qua adapter (P1.4/P1.5). Người dùng đã xác nhận
+chạy test thành công ngày 02/11/2026 sau khi bổ sung Boot security test starter.
+Guard yêu cầu chỉ profile `test`, DB/user `bpm_test`, URL dạng
+`jdbc:postgresql://<host>:<port>/bpm_test` không có query parameters; kiểm tra lại
+metadata DataSource trước schema. Test DB dùng chung annotation `@IsolatedPostgresTest`.
+Chưa có kiểm thử rollback JPA + engine, concurrency hoặc restart của P1.6.
 
-Nếu chạy test từ IDE thay vì Docker runner, cần tự cung cấp `TEST_DATABASE_URL`, `TEST_DATABASE_USERNAME`, `TEST_DATABASE_PASSWORD` trỏ tới DB PostgreSQL test riêng tên `bpm_test`. Profile test không có fallback về DB dev.
+Nếu chạy test từ IDE thay vì Docker runner, cần tự cung cấp `TEST_DATABASE_URL`,
+`TEST_DATABASE_USERNAME=bpm_test`, `TEST_DATABASE_PASSWORD` trỏ tới DB PostgreSQL
+test riêng tên `bpm_test`. Profile test không có fallback về DB dev. Không chạy
+nhiều test runner trên cùng DB; xem [hướng dẫn P1.4/P1.5](docs/P1.4-P1.5-Verification.md).
 
 ## 5. Cấu hình ứng dụng và schema
 
@@ -125,7 +134,11 @@ Storage S3-compatible sẽ được bổ sung trước chức năng đính kèm;
 - Test stack chạy thành công trong DB `bpm_test`; dữ liệu dev không thay đổi.
 - Báo cáo Surefire được lấy ra trước khi xóa container test.
 
-Người dùng đã xác nhận chạy xong Docker; kết quả test stack và kiểm tra persistence sẽ được ghi nhận riêng tại [P1.2 trong kế hoạch](docs/Enterprise-BPM-Implementation-Plan.md). Bước tiếp theo là P1.3 — cấu trúc module và hợp đồng API nền.
+Người dùng đã xác nhận chạy xong Docker; kết quả test stack và kiểm tra persistence
+sẽ được ghi nhận riêng tại [P1.2 trong kế hoạch](docs/Enterprise-BPM-Implementation-Plan.md).
+Người dùng xác nhận test và build/kiểm tra dev thành công ngày 02/11/2026;
+P1.4/P1.5 đã chốt, bước tiếp theo là P1.6. Persistence qua recreate/restart vẫn
+cần kiểm chứng riêng.
 
 ## 7. P1.3 — Module và hợp đồng API
 
@@ -136,8 +149,8 @@ source cho helper, use case và controller. JWT Bearer tự phát HS256, CORS, g
 exception handler, response chung, Clock và correlation/logging đã được bổ sung ở
 commit security trước đó.
 
-Phần code P1.3 đã được rà soát tĩnh; **build/test vẫn chờ người dùng chạy**, chưa
-đánh dấu bước đạt. Controller/config process đã có body nhưng chưa đăng ký route/
+Phần code P1.3 đã được rà soát tĩnh; bộ test hiện tại và build/dev đã được người
+dùng xác nhận chạy thành công ngày 02/11/2026. Controller/config process đã có body nhưng chưa đăng ký route/
 bean; adapter danh mục và danh tính thật tiếp tục ở các bước phụ thuộc schema/P2/P4.
 
 - [Hướng dẫn từng phần](docs/P1.3-Manual-Implementation-Guide.md): code map, mục đích file, trạng thái code và phần để dành cho các bước sau.
@@ -150,5 +163,19 @@ mặc định theo yêu cầu người dùng; thay `JWT_SECRET_KEY` trong `.env`
 `JWT_ISSUER=https://bpm.local`, `JWT_AUDIENCE=bpm-api`, `JWT_ACCESS_TOKEN_TTL=30m` là
 baseline dev. Ngoài dev/test phải cấp secret riêng. Service phát token đã có;
 API login/refresh/logout và trạng thái tài khoản sẽ được nối ở P2.1.
+
+## 8. P1.4/P1.5 — schema, adapter và integration test
+
+Đã bổ sung schema guard, fixture JPA/SQL và pipeline GitHub Actions tại
+`.github/workflows/backend.yml`. Port/DTO ứng dụng và adapter Flowable hỗ trợ
+deploy/start/query/claim/complete/history; fixture chỉ nằm trong test resources.
+Test source bao phủ hai nhánh XOR, direct assignee, candidate user/group queue,
+definition ID pinning và lịch sử. Chưa bật API runtime, chưa thêm bảng nghiệp vụ.
+
+**P1.4/P1.5 đã được người dùng xác nhận đạt ngày 02/11/2026:** test và build/kiểm
+tra dev thành công sau khi sửa dependency `spring-boot-starter-security-test`.
+Agent không chạy lại; chưa có kết quả GitHub Actions. Xem [hướng dẫn nghiệm thu và code map](docs/P1.4-P1.5-Verification.md)
+để chạy lại khi cần. Bước tiếp theo P1.6 kiểm chứng rollback JPA + engine,
+claim/complete cạnh tranh và restart khi task đang chờ.
 
 Tham chiếu: [Docker Compose health/dependency](https://docs.docker.com/compose/how-tos/startup-order/), [PostgreSQL official image — volume PostgreSQL 18](https://hub.docker.com/_/postgres), [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/endpoints.html), [Flowable schema configuration](https://www.flowable.com/open-source/docs/bpmn/ch05a-Spring-Boot).

@@ -7,6 +7,8 @@
  *
  * <p>Không trả org.flowable.task.api.Task qua HTTP, không nhân đôi task runtime
  * bằng một bảng trạng thái riêng, không coi quyền Admin là quyền duyệt.
- * P1.3 chưa triển khai claim/complete hoặc chống lặp.
+ * P1.5 có port application.engine và adapter.flowable cho query/claim/complete;
+ * kiểm tra candidate/assignee kỹ thuật, chưa có endpoint hay bộ policy P2/Phase 5.
+ * Chưa chứng minh concurrency/idempotency ở mức nghiệp vụ (P1.6/Phase 5).
  */
 package com.x.bpm.task;

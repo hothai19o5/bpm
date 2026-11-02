@@ -1,7 +1,8 @@
 # Enterprise BPM — Kế hoạch triển khai MVP theo phase
 
 **Ngày lập:** 30/10/2026.  
-**Trạng thái:** Chính sách và trải nghiệm P0.1–P0.6 đã được người dùng xác nhận; Phase 0 còn đầu vào và hợp đồng kỹ thuật cần hoàn thiện theo mục 4. Chưa đánh dấu các phase triển khai/kiểm thử hoàn thành.  
+**Trạng thái:** Chính sách và trải nghiệm P0.1–P0.6 đã được người dùng xác nhận; Phase 0 còn đầu vào và hợp đồng kỹ thuật cần hoàn thiện theo mục 4. Ngày 02/11/2026, người dùng xác nhận test và build/kiểm tra dev thành công, chốt P1.4/P1.5; Phase 1 còn P1.6.
+
 **Nguồn nghiệp vụ:** [Enterprise-BPM-MVP-Specification.md](Enterprise-BPM-MVP-Specification.md).  
 **Nguồn giao diện:** 4 ảnh trong [concept-ui](../concept-ui/).
 
@@ -18,7 +19,7 @@ Hiện trạng đọc được trong repository:
 | Backend | Có entry point Spring Boot; `pom.xml` khai báo Java 25, Spring Boot 4.1.2 và Flowable 8.0.0. Người dùng xác nhận đã kiểm thử bộ phiên bản ngày 01/11/2026. | Giữ nguyên, không kiểm chứng lại tương thích; C-15. Còn chuẩn bị Docker và kiểm thử engine/nghiệp vụ theo các bước sau. |
 | Database local | `compose.yaml` dùng PostgreSQL 18.6, named volume và health check; backend chạy cùng stack Docker. | Đã chuẩn bị cấu hình ngày 01/11/2026; người dùng chạy build/khởi động để kiểm chứng kết nối và persistence. |
 | Cấu hình ứng dụng | Có profile dev/test, PostgreSQL datasource, schema tự quản lý trong dev, health endpoint và graceful shutdown. | Chưa có storage/auth nghiệp vụ; cấu hình runtime cần người dùng kiểm chứng. |
-| Kiểm thử | Có smoke test profile test kiểm tra PostgreSQL `bpm_test` và truy vấn Flowable; có stack test riêng. | Người dùng chạy test; chưa có kết quả smoke test hoặc bằng chứng nghiệp vụ/rollback/phân quyền/concurrency. |
+| Kiểm thử | Có smoke test PostgreSQL `bpm_test`, JPA schema/seed và integration test Flowable qua adapter; có stack test riêng và cấu hình CI. | Người dùng xác nhận test và build/kiểm tra dev thành công ngày 02/11/2026. Rollback JPA + engine, concurrency và restart còn ở P1.6; chưa có kết quả GitHub Actions. |
 | Frontend | Chưa thấy mã frontend. | Cần dựng nền giao diện và các màn hình từ đầu. |
 | Nghiệp vụ | Chưa thấy module quy trình, biểu mẫu, hồ sơ, task hoặc tổ chức. | Không đánh dấu bất kỳ tính năng MVP nào là đã hoàn thành. |
 
@@ -166,6 +167,34 @@ Phần thảo luận phạm vi/nghiệp vụ/trải nghiệm Phase 0 đã chốt
 **Tiến độ code ngày 02/11/2026:** Theo yêu cầu sửa và commit P1.3, đã hoàn thiện phân trang, revision guard, DTO mapper, policy và body controller/config cho ví dụ đọc danh mục; use case điều phối qua port, không nhận actor từ client. Lỗi query/expected revision sai dùng INVALID_REQUEST, revision cũ dùng REVISION_CONFLICT; policy ném lỗi và dừng trước query khi thiếu danh tính/quyền. Có test source cho phân trang biên lớn, lỗi HTTP 400, policy/use case và mapping response; chưa chạy build/test theo AGENTS.md, chưa đánh dấu P1.3 đạt.
 
 **Ranh giới để dành:** Controller/config process chưa kích hoạt bean/route; persistence adapter danh mục và CurrentActorProvider thật còn chờ schema/tài khoản/quyền ở các bước tương ứng. Permission `Admin`/`SubAdmin` hiện chỉ là giá trị của bài thực hành, cần chuẩn hóa RBAC tại P2.3. Đây không phải API danh mục đã nghiệm thu. Người dùng chạy stack dev/test theo README để xác nhận trước khi chốt P1.3; P1.4 tập trung schema dev/test và test harness, chưa thêm migration.
+
+### P1.4 — Schema dev/test và kiểm tra tự động
+
+**Tiến độ code ngày 02/11/2026:** Theo yêu cầu thực hiện cả P1.4/P1.5, đã giữ cấu
+hình schema dev/test không migration và bổ sung harness `@IsolatedPostgresTest`.
+Guard kiểm tra profile/URL/user trước schema và xác nhận metadata PostgreSQL của
+DataSource; chỉ chấp nhận DB/user `bpm_test`. Entity/SQL seed kỹ thuật chỉ nằm trong
+test source để kiểm chứng tạo schema JPA khi chưa có bảng nghiệp vụ. Đã bổ sung
+workflow GitHub Actions chạy test PostgreSQL Docker, thu báo cáo và build image.
+Không tạo schema nghiệp vụ hoặc tài khoản giả vào dev. **P1.4 đã được người dùng
+xác nhận đạt ngày 02/11/2026:** test và build/kiểm tra dev thành công sau khi sửa
+dependency Boot security test. Agent không chạy lại; chưa có kết quả GitHub Actions.
+Lệnh và kết quả mong đợi tại
+[hướng dẫn P1.4/P1.5](P1.4-P1.5-Verification.md).
+
+### P1.5 — Chạy process tối thiểu qua adapter
+
+**Tiến độ code ngày 02/11/2026:** Đã hiện thực application port/DTO và adapter
+Flowable deploy/start/query/history, query task/claim/complete. Start bằng definition
+ID cụ thể; business key đại diện ID hồ sơ giả lập trong test, chưa lưu mapping ứng
+dụng khi chưa có bảng nghiệp vụ. Kiểu Flowable chỉ ở adapter; không bật API runtime
+hoặc thay query danh mục bằng query engine. Hai fixture Start → User Task → XOR →
+End kiểm tra direct assignee và candidate user/group queue; có test source cho cả
+hai nhánh, claim/complete đúng người, history, version pinning và lỗi đầu vào.
+**P1.5 đã được người dùng xác nhận đạt ngày 02/11/2026:** test và build/kiểm tra
+dev thành công; chốt để chuyển sang P1.6. Agent không chạy lại. RBAC/assignment nghiệp vụ ở P2/
+Phase 5; rollback JPA + engine, concurrency và restart vẫn thuộc P1.6. Chi tiết và
+lệnh nghiệm thu tại [hướng dẫn P1.4/P1.5](P1.4-P1.5-Verification.md).
 
 ## 6. Phase 2 — Danh tính, tổ chức, phân quyền và khung UI
 

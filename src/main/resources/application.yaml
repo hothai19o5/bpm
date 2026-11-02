@@ -49,3 +49,6 @@ management:
 
 flowable:
   database-schema-update: "false"
+  # Publish/deploy is explicit through the adapter; do not deploy classpath BPMN at startup.
+  check-process-definitions: false
+  history-level: audit
