@@ -13,14 +13,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class TestDatabaseEnvironmentGuardTest {
     @Test
     void allowsExplicitPostgresTestDatabase() {
-        var environment = environment("jdbc:postgresql://postgres:5432/bpm_test", "bpm_test");
+        var environment = environment(
+                "jdbc:postgresql://postgres:5432/bpm_test?currentSchema=flowable,business,public",
+                "bpm_test");
         assertThatCode(() -> TestDatabaseEnvironmentGuard.validate(environment)).doesNotThrowAnyException();
     }
 
     @ParameterizedTest
     @ValueSource(strings = {
             "jdbc:postgresql://postgres:5432/bpm",
+            "jdbc:postgresql://postgres:5432/bpm_test",
             "jdbc:postgresql://postgres:5432/bpm_test?currentSchema=public",
+            "jdbc:postgresql://postgres:5432/bpm_test?currentSchema=business,flowable,public",
             "jdbc:postgresql://postgres:5432/bpm_test?user=bpm",
             "jdbc:postgresql://postgres:5432/bpm_test/other",
             "jdbc:h2:mem:bpm_test", ""
@@ -33,9 +37,11 @@ class TestDatabaseEnvironmentGuardTest {
     @Test
     void rejectsDevUserAndMixedProfiles() {
         assertThatThrownBy(() -> TestDatabaseEnvironmentGuard.validate(
-                environment("jdbc:postgresql://localhost:5432/bpm_test", "bpm")))
+                environment("jdbc:postgresql://localhost:5432/bpm_test"
+                        + "?currentSchema=flowable,business,public", "bpm")))
                 .isInstanceOf(IllegalStateException.class);
-        var environment = environment("jdbc:postgresql://localhost:5432/bpm_test", "bpm_test");
+        var environment = environment("jdbc:postgresql://localhost:5432/bpm_test"
+                + "?currentSchema=flowable,business,public", "bpm_test");
         environment.setActiveProfiles("test", "dev");
         assertThatThrownBy(() -> TestDatabaseEnvironmentGuard.validate(environment))
                 .isInstanceOf(IllegalStateException.class);

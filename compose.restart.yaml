@@ -9,7 +9,7 @@ services:
     command: ["sh", "./mvnw", "--batch-mode", "--no-transfer-progress", "clean", "test", "-Dtest=P16RestartPersistenceTest"]
     environment:
       SPRING_PROFILES_ACTIVE: test
-      TEST_DATABASE_URL: jdbc:postgresql://postgres:5432/bpm_test
+      TEST_DATABASE_URL: jdbc:postgresql://postgres:5432/bpm_test?currentSchema=flowable,business,public
       TEST_DATABASE_USERNAME: bpm_test
       TEST_DATABASE_PASSWORD: bpm-restart-test-only
       P16_RESTART_STAGE: ${P16_RESTART_STAGE:?Use scripts/Verify-P16Restart.ps1}
@@ -31,6 +31,7 @@ services:
     # Unlike compose.test.yaml this DB must survive a container recreate.
     volumes:
       - restart-data:/var/lib/postgresql
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bpm_test -d bpm_test"]
       interval: 5s
