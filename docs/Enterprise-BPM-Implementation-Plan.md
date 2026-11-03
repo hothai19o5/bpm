@@ -233,7 +233,7 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 **Tiến độ P2.2 ngày 03/11/2026:** P2.2a–d đã có contract, domain/application/persistence, API/Postman và test source. Xem [hướng dẫn](P2.2-Organization-Implementation-Guide.md) và [biên bản kiểm chứng](P2.2-Verification.md). **Toàn bộ P2.2 chưa chạy build/test/dev; chưa nghiệm thu.**
 
-**Tiến độ P2.3 ngày 03/11/2026:** P2.3a đã định nghĩa permission catalog, role baseline và policy contract tại [hướng dẫn P2.3](P2.3-Authorization-Implementation-Guide.md). **Chưa chạy build/test/dev; chưa nghiệm thu P2.3.**
+**Tiến độ P2.3 ngày 03/11/2026:** P2.3a đã định nghĩa permission catalog, role baseline và policy contract tại [hướng dẫn P2.3](P2.3-Authorization-Implementation-Guide.md). P2.3b đã có shared policy/decision/resource context và test source; process policy đã bỏ permission tạm `Admin/SubAdmin`. **Chưa chạy build/test/dev; chưa nghiệm thu P2.3.**
 
 ## 7. Phase 3 — Nền tảng biểu mẫu động
 

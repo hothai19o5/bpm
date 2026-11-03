@@ -1,6 +1,7 @@
 package com.x.bpm.process.application;
 
 import com.x.bpm.identity.application.CurrentActorProvider;
+import com.x.bpm.authorization.domain.PermissionCatalog;
 import com.x.bpm.identity.domain.ActorContext;
 import com.x.bpm.process.config.ProcessModuleConfiguration;
 import com.x.bpm.process.domain.ProcessCatalogScope;
@@ -27,7 +28,7 @@ import static org.mockito.Mockito.when;
 class ListProcessDefinitionsUseCaseTest {
 
     @ParameterizedTest
-    @CsvSource({"Admin,ALL", "SubAdmin,STARTABLE_FOR_ACTOR"})
+    @CsvSource({"process.monitor.all,ALL", "process.catalog.read,STARTABLE_FOR_ACTOR"})
     void queryReceivesTheAuthenticatedActorAndPermittedScope(String permission,
                                                             ProcessCatalogScope expectedScope) {
         var actor = new ActorContext("user-001", true, Set.of(permission));
@@ -60,7 +61,8 @@ class ListProcessDefinitionsUseCaseTest {
     private static Stream<Arguments> deniedActors() {
         return Stream.of(
                 Arguments.of(null, ErrorCode.UNAUTHENTICATED),
-                Arguments.of(new ActorContext("inactive", false, Set.of("Admin")), ErrorCode.UNAUTHENTICATED),
+                Arguments.of(new ActorContext("inactive", false,
+                        Set.of(PermissionCatalog.PROCESS_MONITOR_ALL)), ErrorCode.UNAUTHENTICATED),
                 Arguments.of(new ActorContext("employee", true, Set.of()), ErrorCode.FORBIDDEN),
                 Arguments.of(new ActorContext("wildcard", true, Set.of("*")), ErrorCode.FORBIDDEN));
     }
@@ -81,7 +83,8 @@ class ListProcessDefinitionsUseCaseTest {
 
     @Test
     void infrastructureFailuresAreNotConvertedToEmptySuccessfulPages() {
-        var actor = new ActorContext("user-001", true, Set.of("Admin"));
+        var actor = new ActorContext("user-001", true,
+                Set.of(PermissionCatalog.PROCESS_MONITOR_ALL));
         var query = PageQuery.from(null, null, null);
         var port = mock(ProcessDefinitionQueryPort.class);
         var failure = new IllegalStateException("test query failure");

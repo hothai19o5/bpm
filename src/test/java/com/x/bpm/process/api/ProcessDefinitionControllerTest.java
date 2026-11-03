@@ -1,5 +1,6 @@
 package com.x.bpm.process.api;
 
+import com.x.bpm.authorization.domain.PermissionCatalog;
 import com.x.bpm.identity.application.CurrentActorProvider;
 import com.x.bpm.identity.domain.ActorContext;
 import com.x.bpm.process.application.ProcessDefinitionQueryPort;
@@ -33,7 +34,8 @@ class ProcessDefinitionControllerTest {
 
     @Test
     void mapsThePermittedPageIntoPublicDtosAndResponseMetadata() {
-        var actor = new ActorContext("user-001", true, Set.of("SubAdmin"));
+        var actor = new ActorContext("user-001", true,
+                Set.of(PermissionCatalog.PROCESS_CATALOG_READ));
         var summary = new ProcessDefinitionSummary("process-001", "purchase", "Đề nghị mua sắm",
                 3, Instant.parse("2026-11-01T04:00:00Z"));
         var query = new PageQuery(0, 20, "updatedAt,desc");

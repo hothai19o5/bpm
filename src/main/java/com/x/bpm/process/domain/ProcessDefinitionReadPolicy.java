@@ -1,5 +1,6 @@
 package com.x.bpm.process.domain;
 
+import com.x.bpm.authorization.domain.PermissionCatalog;
 import com.x.bpm.identity.domain.ActorContext;
 import com.x.bpm.shared.error.ApplicationException;
 import com.x.bpm.shared.error.ErrorCode;
@@ -12,12 +13,12 @@ public class ProcessDefinitionReadPolicy {
             throw new ApplicationException(ErrorCode.UNAUTHENTICATED,
                     "Danh tính không hợp lệ hoặc tài khoản đã ngừng hoạt động.");
         }
-        // Giá trị permission hiện có của bài thực hành; chuẩn hóa RBAC tại P2.3.
-        // Đây là quyền trong ActorContext, không phải role/header do client tự khai.
-        if (actor.hasPermission("Admin")) {
+        if (actor.hasPermission(PermissionCatalog.PROCESS_MONITOR_ALL)
+                || actor.hasPermission(PermissionCatalog.PROCESS_DESIGN)) {
             return ProcessCatalogScope.ALL;
         }
-        if (actor.hasPermission("SubAdmin")) {
+        if (actor.hasPermission(PermissionCatalog.PROCESS_CATALOG_READ)
+                || actor.hasPermission(PermissionCatalog.PROCESS_START)) {
             return ProcessCatalogScope.STARTABLE_FOR_ACTOR;
         }
         throw new ApplicationException(ErrorCode.FORBIDDEN,
