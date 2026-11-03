@@ -216,7 +216,7 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 **Mục tiêu:** Có nền quyền và giao diện nhất quán trước khi thêm designer và hồ sơ.
 
-**P2.1a đã chốt ngày 03/11/2026:** [Hướng dẫn đăng nhập và vòng đời JWT](P2.1-Manual-Implementation-Guide.md) ghi hợp đồng endpoint, token, refresh rotation/replay, password policy, code map và checklist kiểm chứng. Chưa có code nghiệp vụ hoặc kết quả nghiệm thu P2.1; bước tiếp theo là P2.1b — persistence port/adapter, password hashing và fixture dev/test.
+**P2.1a đã chốt và commit ngày 03/11/2026:** [Hướng dẫn đăng nhập và vòng đời JWT](P2.1-Manual-Implementation-Guide.md) ghi hợp đồng endpoint, token, refresh rotation/replay, password policy, code map và checklist kiểm chứng. Source P2.1b cho persistence port/adapter, password hashing và fixture test đã triển khai. Suite trước khi bỏ bootstrap dev đạt 108 test, 0 failure/error, 1 restart test được skip có chủ đích; source hiện tại cần chạy lại. Không bootstrap tài khoản dev; API quản trị tạo tài khoản thuộc P2.2. Chưa có login/refresh/logout API hoặc kết quả nghiệm thu toàn P2.1.
 
 **Business model/schema ngày 03/11/2026:** Đã bổ sung model JPA cho 21 bảng nghiệp vụ, chú thích tiếng Việt và test source. Người dùng xác nhận build, test và dev thành công; chốt bước model/schema. Agent không chạy lại. Xem [mô hình dữ liệu](Business-Data-Model.md); các use case/API P2.1 và các phase sau vẫn triển khai riêng.
 

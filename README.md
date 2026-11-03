@@ -2,7 +2,7 @@
 
 Cấu hình dùng Java 25, Spring Boot 4.1.2, Flowable 8.0.0 theo `pom.xml` và PostgreSQL 18.6. Backend, build và test chạy trong container; máy host cần Docker Desktop ở chế độ Linux containers và Docker Compose v2 có hỗ trợ `up --wait`.
 
-**Trạng thái ngày 03/11/2026:** Người dùng xác nhận P1.4/P1.5, P1.6 và business model/schema đã build/test thành công. P2.1a đã chốt hợp đồng đăng nhập và vòng đời JWT; bước tiếp theo là P2.1b — persistence port/adapter, password hashing và fixture dev/test. Agent không chạy lại; chưa có kết quả GitHub Actions. Các lần build/test tiếp theo tiếp tục do người dùng chạy.
+**Trạng thái ngày 03/11/2026:** Người dùng xác nhận P1.4/P1.5, P1.6 và business model/schema đã build/test thành công. P2.1a đã commit. P2.1b có persistence port/adapter, password hashing và fixture test; suite trước khi bỏ bootstrap dev đạt 108 test, 0 failure/error. Source hiện tại cần chạy lại suite và build/dev sau thay đổi bỏ bootstrap. Agent không chạy; chưa có kết quả GitHub Actions.
 
 ## 1. Chuẩn bị lần đầu
 
@@ -39,7 +39,7 @@ Với cổng mặc định, kiểm tra:
 Invoke-RestMethod http://localhost:8080/actuator/health
 ```
 
-Kết quả mong đợi là `status: UP`. Nếu đổi `APP_PORT`, dùng cổng đã cấu hình. Health endpoint kiểm tra trạng thái ứng dụng và DB; chưa phải bằng chứng nghiệp vụ/transaction/concurrency đã đúng. Security dùng JWT Bearer stateless; API bảo vệ trả JSON 401 khi thiếu token. Chưa có màn hình, login nghiệp vụ hoặc tài khoản mặc định.
+Kết quả mong đợi là `status: UP`. Nếu đổi `APP_PORT`, dùng cổng đã cấu hình. Health endpoint kiểm tra trạng thái ứng dụng và DB; chưa phải bằng chứng nghiệp vụ/transaction/concurrency đã đúng. Security dùng JWT Bearer stateless; API bảo vệ trả JSON 401 khi thiếu token. Chưa có màn hình, login nghiệp vụ hoặc bootstrap tài khoản dev. Test authentication dùng fixture trong DB test; API quản trị tạo tài khoản thuộc P2.2.
 
 Xem log:
 
@@ -219,7 +219,14 @@ Xem [mô hình dữ liệu và hướng dẫn kiểm chứng](docs/Business-Data
 **P2.1a đã chốt ngày 03/11/2026:** access token dùng `sid`/`ver`, refresh token
 opaque có hạn tuyệt đối 7 ngày và rotation/replay protection, quyền được đọc từ
 DB hiện tại, cùng policy mật khẩu 12–128 Unicode code point. Đây là thay đổi tài
-liệu nên không có build/test mới. Bước tiếp theo là P2.1b; xem
+liệu nên không có build/test mới.
+
+**P2.1b đã có source, chờ người dùng kiểm chứng:** domain/application model thuần
+Java, persistence ports và JPA adapters, pessimistic-lock queries, password policy,
+`PasswordEncoder` adapter và unit/integration test source. Không bootstrap tài khoản
+dev; tài khoản runtime sẽ được tạo qua API quản trị ở P2.2. Chưa có
+login/refresh/logout API hoặc JWT `sid`/`ver`; các phần đó thuộc
+P2.1c/P2.1d. Xem
 [hướng dẫn P2.1](docs/P2.1-Manual-Implementation-Guide.md).
 
 Tham chiếu: [Docker Compose health/dependency](https://docs.docker.com/compose/how-tos/startup-order/), [PostgreSQL official image — volume PostgreSQL 18](https://hub.docker.com/_/postgres), [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/endpoints.html), [Flowable schema configuration](https://www.flowable.com/open-source/docs/bpmn/ch05a-Spring-Boot).
