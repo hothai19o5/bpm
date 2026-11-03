@@ -95,6 +95,12 @@ public final class UserAccount {
                 false, nextSecurityVersion());
     }
 
+    public UserAccount changeDisplayName(String newDisplayName) {
+        return new UserAccount(id, username, normalizedUsername,
+                requireText(newDisplayName, "newDisplayName").strip(), passwordHash, status,
+                mustChangePassword, securityVersion, revision);
+    }
+
     public UserAccount resetPasswordHash(String newPasswordHash) {
         return copy(requireText(newPasswordHash, "newPasswordHash"), status,
                 true, nextSecurityVersion());

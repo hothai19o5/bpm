@@ -5,6 +5,7 @@ import com.x.bpm.identity.application.NewUserAccount;
 import com.x.bpm.identity.domain.AccountStatus;
 import com.x.bpm.identity.domain.UserAccount;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -20,6 +21,13 @@ public class AuthAccountPersistenceAdapter implements AuthAccountPort {
 
     public AuthAccountPersistenceAdapter(UserJpaRepository users) {
         this.users = users;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserAccount> findAll() {
+        return users.findAllByOrderByUsernameAsc().stream()
+                .map(IdentityPersistenceMapper::toDomain).toList();
     }
 
     @Override

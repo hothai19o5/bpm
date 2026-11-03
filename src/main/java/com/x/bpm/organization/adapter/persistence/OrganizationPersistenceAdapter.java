@@ -133,6 +133,12 @@ public class OrganizationPersistenceAdapter implements OrganizationPort {
         return memberships.hasMembersWithStatus(departmentId, UserEntity.Status.ACTIVE);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isDepartmentManager(UUID userId) {
+        return departments.existsByManagerId(userId);
+    }
+
     private void apply(DepartmentEntity entity, String code, String name, UUID parentId,
             UUID managerUserId, OrganizationStatus status) {
         entity.setCode(code.strip());

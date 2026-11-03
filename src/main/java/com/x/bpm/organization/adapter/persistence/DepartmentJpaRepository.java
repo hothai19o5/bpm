@@ -15,4 +15,6 @@ interface DepartmentJpaRepository extends JpaRepository<DepartmentEntity, UUID> 
 
     @Query("select d from DepartmentEntity d left join fetch d.parent left join fetch d.manager where d.id = :id")
     Optional<DepartmentEntity> findDetailedById(@Param("id") UUID id);
+
+    boolean existsByManagerId(UUID userId);
 }

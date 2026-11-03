@@ -1,6 +1,7 @@
 package com.x.bpm.identity.adapter.persistence;
 
 import jakarta.persistence.LockModeType;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -11,6 +12,8 @@ import org.springframework.data.repository.query.Param;
 
 /** Spring Data chỉ tồn tại trong adapter, không lộ ra application. */
 interface UserJpaRepository extends JpaRepository<UserEntity, UUID> {
+    List<UserEntity> findAllByOrderByUsernameAsc();
+
     Optional<UserEntity> findByNormalizedUsername(String normalizedUsername);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

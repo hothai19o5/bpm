@@ -22,4 +22,5 @@ public interface OrganizationPort {
     DepartmentMembership assignMembership(UUID userId, UUID departmentId, UUID positionId);
     Optional<OrganizationUserRef> findUserById(UUID userId);
     boolean hasActiveMembers(UUID departmentId);
+    boolean isDepartmentManager(UUID userId);
 }

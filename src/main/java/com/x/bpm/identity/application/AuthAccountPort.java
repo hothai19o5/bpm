@@ -1,6 +1,7 @@
 package com.x.bpm.identity.application;
 
 import com.x.bpm.identity.domain.UserAccount;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -10,6 +11,8 @@ import java.util.UUID;
  * Các phương thức ForUpdate/save phải được gọi trong transaction của use case.
  */
 public interface AuthAccountPort {
+    List<UserAccount> findAll();
+
     Optional<UserAccount> findByUsername(String username);
 
     Optional<UserAccount> findById(UUID userId);

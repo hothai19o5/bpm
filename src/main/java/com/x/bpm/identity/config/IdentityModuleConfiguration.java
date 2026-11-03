@@ -9,12 +9,16 @@ import com.x.bpm.identity.application.CurrentAccountProvider;
 import com.x.bpm.identity.application.LoginUseCase;
 import com.x.bpm.identity.application.LogoutUseCase;
 import com.x.bpm.identity.application.MeUseCase;
+import com.x.bpm.identity.application.ManagedRolePort;
 import com.x.bpm.identity.application.PasswordHashPort;
 import com.x.bpm.identity.application.RefreshTokenUseCase;
 import com.x.bpm.identity.application.RefreshTokenIssuer;
 import com.x.bpm.identity.application.ResolveAuthenticatedActorUseCase;
 import com.x.bpm.identity.application.TransactionRunner;
+import com.x.bpm.identity.application.UserAdministrationUseCase;
 import com.x.bpm.identity.domain.PasswordPolicy;
+import com.x.bpm.organization.application.OrganizationManagementUseCase;
+import com.x.bpm.organization.application.OrganizationPort;
 import java.time.Clock;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -75,6 +79,16 @@ public class IdentityModuleConfiguration {
             TransactionRunner transactions, Clock clock) {
         return new AccountSecurityUseCase(accounts, grants, passwordHashes, passwordPolicy,
                 transactions, clock);
+    }
+
+    @Bean
+    public UserAdministrationUseCase userAdministrationUseCase(AuthAccountPort accounts,
+            ManagedRolePort roles, OrganizationPort organizationPort,
+            OrganizationManagementUseCase organizations, PasswordHashPort passwordHashes,
+            PasswordPolicy passwordPolicy, AccountSecurityUseCase accountSecurity,
+            TransactionRunner transactions) {
+        return new UserAdministrationUseCase(accounts, roles, organizationPort, organizations,
+                passwordHashes, passwordPolicy, accountSecurity, transactions);
     }
 
     @Bean
