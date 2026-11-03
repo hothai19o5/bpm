@@ -1,0 +1,19 @@
+$kind: http-request
+order: 2000
+method: POST
+url: '{{baseUrl}}/api/v1/admin/users'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "employee.new",
+      "displayName": "New Employee",
+      "temporaryPassword": "{{newPassword}}",
+      "status": "ACTIVE",
+      "departmentId": "{{departmentId}}",
+      "positionId": "{{positionId}}",
+      "roleIds": ["{{roleId}}"]
+    }

@@ -11,11 +11,17 @@ description: |-
 
   ## Modules
   - Auth - login, token refresh, logout, password change, current user identity
+  - Admin Users - managed accounts, status, password reset and role membership
+  - Organization - departments, positions and requester-manager resolution
   - Process Definitions - list deployed process definitions (planned, not yet active)
 variables:
   baseUrl: http://localhost:8080
   accessToken: ""
   refreshToken: ""
+  userId: ""
+  departmentId: ""
+  positionId: ""
+  roleId: ""
 auth:
   type: bearer
   credentials:

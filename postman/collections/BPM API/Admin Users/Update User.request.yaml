@@ -1,0 +1,17 @@
+$kind: http-request
+order: 3500
+method: PUT
+url: '{{baseUrl}}/api/v1/admin/users/{{userId}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "displayName": "Updated Employee",
+      "departmentId": "{{departmentId}}",
+      "positionId": "{{positionId}}",
+      "roleIds": ["{{roleId}}"],
+      "expectedRevision": 0
+    }

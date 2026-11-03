@@ -1,0 +1,4 @@
+$kind: http-request
+order: 7000
+method: GET
+url: '{{baseUrl}}/api/v1/admin/roles'

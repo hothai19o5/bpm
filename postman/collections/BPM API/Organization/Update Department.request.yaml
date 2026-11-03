@@ -1,0 +1,18 @@
+$kind: http-request
+order: 2500
+method: PUT
+url: '{{baseUrl}}/api/v1/admin/departments/{{departmentId}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "code": "FIN",
+      "name": "Finance Updated",
+      "parentId": null,
+      "managerUserId": null,
+      "status": "ACTIVE",
+      "expectedRevision": 0
+    }

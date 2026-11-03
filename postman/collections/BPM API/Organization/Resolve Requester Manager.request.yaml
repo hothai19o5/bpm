@@ -1,0 +1,4 @@
+$kind: http-request
+order: 5000
+method: GET
+url: '{{baseUrl}}/api/v1/organization/users/{{userId}}/requester-manager'
