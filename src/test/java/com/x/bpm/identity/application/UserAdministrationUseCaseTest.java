@@ -64,7 +64,7 @@ class UserAdministrationUseCaseTest {
         var security = mock(AccountSecurityUseCase.class);
         var useCase = new UserAdministrationUseCase(accounts, roles, organizationPort,
                 organizations, passwords, new PasswordPolicy(), security,
-                new ImmediateTransactions());
+                new ImmediateTransactions(), (action, entityType, entityId, diff) -> { });
         return new Fixture(useCase, accounts, roles, organizationPort, passwords, security);
     }
 

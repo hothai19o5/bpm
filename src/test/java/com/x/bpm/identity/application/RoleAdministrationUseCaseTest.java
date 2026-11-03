@@ -16,7 +16,8 @@ class RoleAdministrationUseCaseTest {
     @Test
     void synchronizesOnlyTheSystemPermissionCatalog() {
         var port = mock(RoleAdministrationPort.class);
-        var useCase = new RoleAdministrationUseCase(port, new ImmediateTransactions());
+        var useCase = new RoleAdministrationUseCase(port, new ImmediateTransactions(),
+                (action, entityType, entityId, diff) -> { });
 
         useCase.synchronizePermissionCatalog();
 
@@ -29,7 +30,8 @@ class RoleAdministrationUseCaseTest {
         var port = mock(RoleAdministrationPort.class);
         when(port.findPermissionsByIds(Set.of(permissionId))).thenReturn(Set.of(
                 new ManagedPermission(permissionId, "unknown.permission", "Unknown", null)));
-        var useCase = new RoleAdministrationUseCase(port, new ImmediateTransactions());
+        var useCase = new RoleAdministrationUseCase(port, new ImmediateTransactions(),
+                (action, entityType, entityId, diff) -> { });
 
         assertThatThrownBy(() -> useCase.create(new NewManagedRole("custom", "Custom", null,
                 true, Set.of(permissionId))))

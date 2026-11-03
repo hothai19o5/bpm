@@ -19,6 +19,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @IsolatedPostgresTest
 @AutoConfigureMockMvc
@@ -64,6 +65,12 @@ class RoleAdministrationIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.permissions[0].code")
                         .value(PermissionCatalog.PROCESS_CATALOG_READ));
+
+        var auditCount = jdbc.queryForObject("""
+                select count(*) from audit_events
+                where actor_id = ? and action = 'ROLE_CREATED'
+                """, Integer.class, admin.id());
+        assertThat(auditCount).isEqualTo(1);
     }
 
     @Test

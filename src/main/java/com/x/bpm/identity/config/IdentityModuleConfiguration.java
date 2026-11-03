@@ -1,5 +1,6 @@
 package com.x.bpm.identity.config;
 
+import com.x.bpm.audit.application.AuditEventRecorder;
 import com.x.bpm.identity.application.AccessTokenIssuer;
 import com.x.bpm.identity.application.AccountSecurityUseCase;
 import com.x.bpm.identity.application.AuthAccountPort;
@@ -89,15 +90,15 @@ public class IdentityModuleConfiguration {
             ManagedRolePort roles, OrganizationPort organizationPort,
             OrganizationManagementUseCase organizations, PasswordHashPort passwordHashes,
             PasswordPolicy passwordPolicy, AccountSecurityUseCase accountSecurity,
-            TransactionRunner transactions) {
+            TransactionRunner transactions, AuditEventRecorder audit) {
         return new UserAdministrationUseCase(accounts, roles, organizationPort, organizations,
-                passwordHashes, passwordPolicy, accountSecurity, transactions);
+                passwordHashes, passwordPolicy, accountSecurity, transactions, audit);
     }
 
     @Bean
     public RoleAdministrationUseCase roleAdministrationUseCase(RoleAdministrationPort roles,
-            TransactionRunner transactions) {
-        return new RoleAdministrationUseCase(roles, transactions);
+            TransactionRunner transactions, AuditEventRecorder audit) {
+        return new RoleAdministrationUseCase(roles, transactions, audit);
     }
 
     @Bean

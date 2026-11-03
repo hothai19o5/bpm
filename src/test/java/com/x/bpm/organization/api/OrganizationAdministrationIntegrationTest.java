@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @IsolatedPostgresTest
 @AutoConfigureMockMvc
@@ -73,6 +74,14 @@ class OrganizationAdministrationIntegrationTest {
                 .andExpect(jsonPath("$.data.username").value("managed.employee"))
                 .andExpect(jsonPath("$.data.mustChangePassword").value(true))
                 .andExpect(jsonPath("$.data.membership.departmentId").value(departmentId));
+
+        var auditActions = jdbc.queryForList("""
+                select action from audit_events
+                where actor_id = ? and action in ('DEPARTMENT_CREATED', 'POSITION_CREATED', 'USER_CREATED')
+                order by action
+                """, String.class, admin.id());
+        assertThat(auditActions).containsExactly(
+                "DEPARTMENT_CREATED", "POSITION_CREATED", "USER_CREATED");
     }
 
     @Test

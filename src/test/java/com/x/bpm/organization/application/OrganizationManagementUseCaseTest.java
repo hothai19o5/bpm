@@ -87,7 +87,8 @@ class OrganizationManagementUseCaseTest {
     }
 
     private OrganizationManagementUseCase useCase(OrganizationPort port) {
-        return new OrganizationManagementUseCase(port, new ImmediateTransactions());
+        return new OrganizationManagementUseCase(port, new ImmediateTransactions(),
+                (action, entityType, entityId, diff) -> { });
     }
 
     private Department department(UUID id, UUID parentId, UUID managerId) {

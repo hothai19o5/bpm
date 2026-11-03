@@ -1,5 +1,6 @@
 package com.x.bpm.organization.application;
 
+import com.x.bpm.audit.application.AuditEventRecorder;
 import com.x.bpm.organization.domain.Department;
 import com.x.bpm.organization.domain.DepartmentMembership;
 import com.x.bpm.organization.domain.OrganizationStatus;
@@ -8,6 +9,7 @@ import com.x.bpm.shared.application.RevisionGuard;
 import com.x.bpm.shared.error.ApplicationException;
 import com.x.bpm.shared.error.ErrorCode;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -16,11 +18,13 @@ import java.util.UUID;
 public final class OrganizationManagementUseCase {
     private final OrganizationPort organizations;
     private final OrganizationTransactionRunner transactions;
+    private final AuditEventRecorder audit;
 
     public OrganizationManagementUseCase(OrganizationPort organizations,
-            OrganizationTransactionRunner transactions) {
+            OrganizationTransactionRunner transactions, AuditEventRecorder audit) {
         this.organizations = Objects.requireNonNull(organizations, "organizations");
         this.transactions = Objects.requireNonNull(transactions, "transactions");
+        this.audit = Objects.requireNonNull(audit, "audit");
     }
 
     public List<Department> departments() {
@@ -30,7 +34,11 @@ public final class OrganizationManagementUseCase {
     public Department createDepartment(NewDepartment command) {
         return transactions.required(() -> {
             validateDepartment(null, command.parentId(), command.managerUserId(), command.status());
-            return organizations.createDepartment(command);
+            var created = organizations.createDepartment(command);
+            audit.record("DEPARTMENT_CREATED", "DEPARTMENT", created.id().toString(),
+                    departmentDiff(command.code(), command.name(), command.parentId(),
+                            command.managerUserId(), command.status(), 0));
+            return created;
         });
     }
 
@@ -44,8 +52,12 @@ public final class OrganizationManagementUseCase {
                     && (hasActiveChild(id) || organizations.hasActiveMembers(id))) {
                 throw conflict("Không thể vô hiệu hóa phòng ban còn child hoặc member ACTIVE.");
             }
-            return organizations.saveDepartment(new Department(id, code, name, parentId,
+            var updated = organizations.saveDepartment(new Department(id, code, name, parentId,
                     managerUserId, status, current.revision()));
+            audit.record("DEPARTMENT_UPDATED", "DEPARTMENT", id.toString(),
+                    departmentDiff(code, name, parentId, managerUserId, status,
+                            expectedRevision));
+            return updated;
         });
     }
 
@@ -54,7 +66,13 @@ public final class OrganizationManagementUseCase {
     }
 
     public Position createPosition(NewPosition command) {
-        return transactions.required(() -> organizations.createPosition(command));
+        return transactions.required(() -> {
+            var created = organizations.createPosition(command);
+            audit.record("POSITION_CREATED", "POSITION", created.id().toString(),
+                    positionDiff(command.code(), command.name(), command.description(),
+                            command.status(), 0));
+            return created;
+        });
     }
 
     public Position updatePosition(UUID id, long expectedRevision, String code, String name,
@@ -63,8 +81,11 @@ public final class OrganizationManagementUseCase {
             var current = organizations.findPositionById(id).orElseThrow(
                     OrganizationManagementUseCase::notFound);
             RevisionGuard.requireMatch(expectedRevision, current.revision());
-            return organizations.savePosition(new Position(id, code, name, description, status,
-                    current.revision()));
+            var updated = organizations.savePosition(new Position(id, code, name, description,
+                    status, current.revision()));
+            audit.record("POSITION_UPDATED", "POSITION", id.toString(),
+                    positionDiff(code, name, description, status, expectedRevision));
+            return updated;
         });
     }
 
@@ -165,5 +186,33 @@ public final class OrganizationManagementUseCase {
 
     private static ApplicationException conflict(String message) {
         return new ApplicationException(ErrorCode.REVISION_CONFLICT, message);
+    }
+
+    private static java.util.Map<String, Object> departmentDiff(String code, String name,
+            UUID parentId, UUID managerUserId, OrganizationStatus status,
+            long expectedRevision) {
+        var diff = new LinkedHashMap<String, Object>();
+        diff.put("code", code);
+        diff.put("name", name);
+        diff.put("parentId", stringValue(parentId));
+        diff.put("managerUserId", stringValue(managerUserId));
+        diff.put("status", status.name());
+        diff.put("expectedRevision", expectedRevision);
+        return diff;
+    }
+
+    private static java.util.Map<String, Object> positionDiff(String code, String name,
+            String description, OrganizationStatus status, long expectedRevision) {
+        var diff = new LinkedHashMap<String, Object>();
+        diff.put("code", code);
+        diff.put("name", name);
+        diff.put("description", description);
+        diff.put("status", status.name());
+        diff.put("expectedRevision", expectedRevision);
+        return diff;
+    }
+
+    private static String stringValue(UUID value) {
+        return value == null ? null : value.toString();
     }
 }
