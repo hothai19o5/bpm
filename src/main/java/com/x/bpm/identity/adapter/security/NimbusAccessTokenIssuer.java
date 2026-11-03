@@ -31,9 +31,12 @@ public class NimbusAccessTokenIssuer implements AccessTokenIssuer {
     }
 
     @Override
-    public IssuedAccessToken issue(String userId, Set<String> permissions) {
-        if (userId == null || userId.isBlank()) {
-            throw new IllegalArgumentException("userId must not be blank");
+    public IssuedAccessToken issue(UUID userId, UUID loginGrantId, long securityVersion,
+            Set<String> permissions) {
+        Objects.requireNonNull(userId, "userId");
+        Objects.requireNonNull(loginGrantId, "loginGrantId");
+        if (securityVersion < 0) {
+            throw new IllegalArgumentException("securityVersion must not be negative");
         }
         Objects.requireNonNull(permissions, "permissions");
         if (permissions.stream().anyMatch(permission -> permission == null || permission.isBlank())) {
@@ -42,8 +45,9 @@ public class NimbusAccessTokenIssuer implements AccessTokenIssuer {
         var now = Instant.now(clock).truncatedTo(ChronoUnit.SECONDS);
         var expiresAt = now.plus(properties.accessTokenTtl());
         var claims = JwtClaimsSet.builder().issuer(properties.issuer())
-                .subject(userId).audience(List.of(properties.audience())).issuedAt(now)
+                .subject(userId.toString()).audience(List.of(properties.audience())).issuedAt(now)
                 .notBefore(now).expiresAt(expiresAt).id(UUID.randomUUID().toString())
+                .claim("sid", loginGrantId.toString()).claim("ver", securityVersion)
                 .claim("permissions", permissions.stream().sorted().toList()).build();
         var header = JwsHeader.with(MacAlgorithm.HS256).type("JWT").build();
         var encoded = encoder.encode(JwtEncoderParameters.from(header, claims));

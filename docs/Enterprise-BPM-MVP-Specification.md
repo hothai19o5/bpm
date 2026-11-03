@@ -495,7 +495,6 @@ Không để frontend gọi Flowable REST/admin trực tiếp. Không cho fronte
 
 ```text
 com.company.bpm
-├── bootstrap
 ├── identity
 ├── organization
 ├── process

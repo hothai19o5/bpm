@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.UUID;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -49,15 +50,33 @@ public class JwtSecurityConfiguration {
     private OAuth2TokenValidator<Jwt> requiredClaims(JwtSecurityProperties properties) {
         return token -> {
             var permissions = token.getClaim("permissions");
+            var sid = token.getClaim("sid");
+            var version = token.getClaim("ver");
             boolean validPermissions = permissions instanceof Collection<?> values
                     && values.stream().allMatch(value -> value instanceof String text && !text.isBlank());
+            boolean validSid = isCanonicalUuid(sid);
+            boolean validVersion = version instanceof Byte || version instanceof Short
+                    || version instanceof Integer || version instanceof Long;
+            validVersion = validVersion && ((Number) version).longValue() >= 0;
             boolean valid = token.getSubject() != null && !token.getSubject().isBlank()
                     && token.getAudience() != null && token.getAudience().contains(properties.audience())
                     && token.getIssuedAt() != null && token.getExpiresAt() != null
                     && token.getExpiresAt().isAfter(token.getIssuedAt())
-                    && token.getId() != null && !token.getId().isBlank() && validPermissions;
+                    && token.getId() != null && !token.getId().isBlank() && validPermissions
+                    && validSid && validVersion;
             return valid ? OAuth2TokenValidatorResult.success() : OAuth2TokenValidatorResult.failure(
                     new OAuth2Error("invalid_token", "Required JWT claims are invalid", null));
         };
+    }
+
+    private boolean isCanonicalUuid(Object value) {
+        if (!(value instanceof String text)) {
+            return false;
+        }
+        try {
+            return UUID.fromString(text).toString().equals(text);
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 }

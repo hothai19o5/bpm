@@ -51,7 +51,9 @@ Các mapping này chưa thay thế policy, validation và transaction của các
 - Kiểm tra chu kỳ phòng ban nhiều cấp, trưởng phòng hợp lệ, user ACTIVE, RBAC và quyền hồ sơ.
 - Giữ snapshot phòng ban khi gửi, phối hợp update hồ sơ với Flowable trong một transaction. CHECK trạng thái không phải engine điều phối.
 - Kiểm tra JSON Schema/quyền trường, tối đa 10 tệp/hồ sơ, loại tệp, upload/cleanup thực tế và download có quyền.
-- P2.1b đã thêm port/JPA adapter, mapping, truy vấn lock, kiểm tra hạn credential không vượt grant và đọc quyền hiện tại. Chặn token cũ khi khóa/đổi mật khẩu, refresh rotation/replay và nối security pipeline vẫn thuộc P2.1c–e.
+- P2.1b đã thêm persistence boundary; P2.1c đã nối login và security pipeline
+  để chặn account/grant/version không còn hợp lệ, đọc quyền hiện tại từ DB.
+  Refresh rotation/replay, logout và chặn token cũ khi đổi mật khẩu thuộc P2.1d–e.
 - Notification chỉ trả cho người nhận; audit không lưu password/token hay toàn bộ dữ liệu nhạy cảm; dữ liệu thành công theo transaction đã commit.
 
 ## 4. Build/test do người dùng chạy

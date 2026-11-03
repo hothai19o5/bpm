@@ -1,6 +1,8 @@
 package com.x.bpm.identity.config;
 
 import com.x.bpm.identity.adapter.security.ApiSecurityHandlers;
+import com.x.bpm.identity.adapter.security.CurrentAccountJwtAuthenticationConverter;
+import com.x.bpm.identity.adapter.security.TemporaryPasswordAuthorizationManager;
 import com.x.bpm.shared.adapter.web.CorrelationIdFilter;
 import jakarta.servlet.DispatcherType;
 import java.util.List;
@@ -15,8 +17,6 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.web.cors.CorsConfiguration;
@@ -31,7 +31,10 @@ public class SecurityConfiguration {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
             UrlBasedCorsConfigurationSource corsConfigurationSource, ApiSecurityHandlers handlers,
-            JwtDecoder jwtDecoder, JwtAuthenticationConverter jwtAuthenticationConverter) throws Exception {
+            JwtDecoder jwtDecoder,
+            CurrentAccountJwtAuthenticationConverter jwtAuthenticationConverter,
+            TemporaryPasswordAuthorizationManager temporaryPasswordAuthorizationManager)
+            throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(AbstractHttpConfigurer::disable)
@@ -49,7 +52,10 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
-                        .requestMatchers("/api/v1/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/auth/me").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/change-password").authenticated()
+                        .requestMatchers("/api/v1/**").access(temporaryPasswordAuthorizationManager)
                         .anyRequest().denyAll());
         return http.build();
     }
@@ -74,13 +80,4 @@ public class SecurityConfiguration {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
 
-    @Bean
-    public JwtAuthenticationConverter jwtAuthenticationConverter() {
-        var authorities = new JwtGrantedAuthoritiesConverter();
-        authorities.setAuthoritiesClaimName("permissions");
-        authorities.setAuthorityPrefix("");
-        var converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(authorities);
-        return converter;
-    }
 }

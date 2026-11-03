@@ -1,21 +1,35 @@
 package com.x.bpm.identity.adapter.security;
 
 import com.x.bpm.identity.application.CurrentActorProvider;
+import com.x.bpm.identity.application.AuthenticatedAccount;
+import com.x.bpm.identity.application.CurrentAccountProvider;
 import com.x.bpm.identity.domain.ActorContext;
+import com.x.bpm.shared.error.ApplicationException;
+import com.x.bpm.shared.error.ErrorCode;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
 
 /**
- * Adapter duy nhất của lát cắt mẫu được đọc Spring Security context.
- * CHƯA là bean; principal ứng dụng/kiểm tra ACTIVE hoàn chỉnh thuộc P2.1.
+ * Adapter duy nhất đọc Spring Security context và chỉ chấp nhận principal ứng dụng.
  */
-public class SpringSecurityCurrentActorProvider implements CurrentActorProvider {
+@Component
+public class SpringSecurityCurrentActorProvider
+        implements CurrentActorProvider, CurrentAccountProvider {
 
     @Override
     public ActorContext requireCurrentActor() {
-        // TODO: Đọc JwtAuthenticationToken từ SecurityContextHolder, không nhận session.
-        // TODO: sub là application user ID; đọc ACTIVE/quyền hiện tại từ identity
-        // khi có DB ở P2.1/P2.2; JWT hợp lệ không chứng minh tài khoản còn ACTIVE.
-        // Không suy diễn userId từ username hoặc nhận quyền do client tự khai.
-        // TODO: Chỉ đăng ký bean sau khi có principal hợp lệ ở P2.1.
-        throw new UnsupportedOperationException("TODO: SpringSecurityCurrentActorProvider.requireCurrentActor");
+        return requireCurrentAccount().actorContext();
+    }
+
+    @Override
+    public AuthenticatedAccount requireCurrentAccount() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()
+                || !(authentication.getPrincipal()
+                        instanceof AuthenticatedAccountPrincipal principal)) {
+            throw new ApplicationException(ErrorCode.UNAUTHENTICATED,
+                    "Yêu cầu chưa có danh tính hợp lệ.");
+        }
+        return principal.account();
     }
 }

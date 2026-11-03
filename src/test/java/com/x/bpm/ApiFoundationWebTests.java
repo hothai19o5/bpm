@@ -1,8 +1,12 @@
 package com.x.bpm;
 
 import com.x.bpm.identity.adapter.security.ApiSecurityHandlers;
+import com.x.bpm.identity.adapter.security.CurrentAccountJwtAuthenticationConverter;
 import com.x.bpm.identity.adapter.security.NimbusAccessTokenIssuer;
+import com.x.bpm.identity.adapter.security.TemporaryPasswordAuthorizationManager;
 import com.x.bpm.identity.application.AccessTokenIssuer;
+import com.x.bpm.identity.application.AuthenticatedAccount;
+import com.x.bpm.identity.application.ResolveAuthenticatedActorUseCase;
 import com.x.bpm.identity.config.JwtSecurityConfiguration;
 import com.x.bpm.identity.config.JwtSecurityProperties;
 import com.x.bpm.identity.config.SecurityConfiguration;
@@ -28,6 +32,7 @@ import java.util.UUID;
 import java.util.function.Consumer;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -45,6 +50,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -53,6 +59,9 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -69,14 +78,32 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "bpm.security.jwt.secret-key=test-only-bpm-jwt-secret-key-not-used-in-dev-2026"
 })
 @Import({SecurityConfiguration.class, JwtSecurityConfiguration.class, NimbusAccessTokenIssuer.class,
+        CurrentAccountJwtAuthenticationConverter.class, TemporaryPasswordAuthorizationManager.class,
         ApiSecurityHandlers.class, ApiFoundationConfiguration.class, ApiResponseFactory.class,
         ApiResponseWriter.class, ApiExceptionHandler.class, ApiFoundationWebTests.ProbeController.class})
 class ApiFoundationWebTests {
+    private static final UUID ALLOWED_USER = UUID.fromString("00000000-0000-0000-0000-000000000101");
+    private static final UUID DENIED_USER = UUID.fromString("00000000-0000-0000-0000-000000000102");
+    private static final UUID LOGIN_GRANT = UUID.fromString("00000000-0000-0000-0000-000000000201");
+
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private AccessTokenIssuer tokenIssuer;
     @Autowired private JwtEncoder encoder;
     @Autowired private JwtSecurityProperties jwtProperties;
+    @MockitoBean private ResolveAuthenticatedActorUseCase identityResolver;
+
+    @BeforeEach
+    void resolveCurrentIdentityFromServerState() {
+        when(identityResolver.resolve(anyString(), anyString(), anyLong())).thenAnswer(invocation -> {
+            var userId = UUID.fromString(invocation.getArgument(0, String.class));
+            var grantId = UUID.fromString(invocation.getArgument(1, String.class));
+            var version = invocation.getArgument(2, Long.class);
+            var permissions = userId.equals(ALLOWED_USER) ? Set.of("PROCESS_READ") : Set.<String>of();
+            return new AuthenticatedAccount(userId, "test-user", "Test User", permissions,
+                    false, grantId, version);
+        });
+    }
 
     @Test
     void unauthenticatedApiReturnsJsonBearerChallengeAndCorrelationId() throws Exception {
@@ -113,7 +140,7 @@ class ApiFoundationWebTests {
 
     @Test
     void issuedTokenAllowsPostWithoutCsrfAndDoesNotCreateSession() throws Exception {
-        var token = tokenIssuer.issue("user-test-001", Set.of("PROCESS_READ"));
+        var token = tokenIssuer.issue(ALLOWED_USER, LOGIN_GRANT, 0, Set.of("PROCESS_READ"));
         assertThat(token.tokenType()).isEqualTo("Bearer");
         assertThat(token.expiresIn()).isEqualTo(jwtProperties.accessTokenTtl().toSeconds());
         assertThat(token.toString()).doesNotContain(token.accessToken());
@@ -134,7 +161,7 @@ class ApiFoundationWebTests {
                 "old-user", "unused-test-value", List.of()));
         session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
         mvc.perform(get("/api/v1/test/probe").session(session)).andExpect(status().isUnauthorized());
-        var token = tokenIssuer.issue("user-test-001", Set.of()).accessToken();
+        var token = tokenIssuer.issue(ALLOWED_USER, LOGIN_GRANT, 0, Set.of()).accessToken();
         mvc.perform(get("/api/v1/test/probe").param("access_token", token))
                 .andExpect(status().isUnauthorized());
     }
@@ -148,8 +175,10 @@ class ApiFoundationWebTests {
         var wrongAudience = sign(encoder, claims -> claims.audience(List.of("another-api")));
         var missingExpiry = sign(encoder, claims -> claims.claims(values -> values.remove("exp")));
         var badPermissions = sign(encoder, claims -> claims.claim("permissions", List.of(123)));
+        var badSid = sign(encoder, claims -> claims.claim("sid", "not-a-uuid"));
+        var badVersion = sign(encoder, claims -> claims.claim("ver", -1));
         for (var token : List.of("broken.jwt.value", expired, future, wrongIssuer, wrongAudience,
-                missingExpiry, badPermissions)) {
+                missingExpiry, badPermissions, badSid, badVersion)) {
             mvc.perform(get("/api/v1/test/probe").header("Authorization", "Bearer " + token))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
@@ -171,8 +200,9 @@ class ApiFoundationWebTests {
 
     @Test
     void verifiedPermissionsControlMethodAccess() throws Exception {
-        var allowed = tokenIssuer.issue("user-test-001", Set.of("PROCESS_READ")).accessToken();
-        var denied = tokenIssuer.issue("user-test-002", Set.of()).accessToken();
+        var allowed = tokenIssuer.issue(ALLOWED_USER, LOGIN_GRANT, 0, Set.of()).accessToken();
+        var denied = tokenIssuer.issue(DENIED_USER, LOGIN_GRANT, 0,
+                Set.of("PROCESS_READ")).accessToken();
         mvc.perform(get("/api/v1/test/scoped").header("Authorization", "Bearer " + allowed))
                 .andExpect(status().isOk());
         mvc.perform(get("/api/v1/test/scoped").header("Authorization", "Bearer " + denied))
@@ -248,14 +278,17 @@ class ApiFoundationWebTests {
     }
 
     private String bearer() {
-        return "Bearer " + tokenIssuer.issue("user-test-001", Set.of("PROCESS_READ")).accessToken();
+        return "Bearer " + tokenIssuer.issue(ALLOWED_USER, LOGIN_GRANT, 0,
+                Set.of("PROCESS_READ")).accessToken();
     }
 
     private String sign(JwtEncoder signer, Consumer<JwtClaimsSet.Builder> customize) {
         var now = Instant.now();
-        var claims = JwtClaimsSet.builder().issuer(jwtProperties.issuer()).subject("user-test-001")
+        var claims = JwtClaimsSet.builder().issuer(jwtProperties.issuer())
+                .subject(ALLOWED_USER.toString())
                 .audience(List.of(jwtProperties.audience())).issuedAt(now).notBefore(now)
                 .expiresAt(now.plusSeconds(1800)).id(UUID.randomUUID().toString())
+                .claim("sid", LOGIN_GRANT.toString()).claim("ver", 0L)
                 .claim("permissions", List.of("PROCESS_READ"));
         customize.accept(claims);
         return signer.encode(JwtEncoderParameters.from(

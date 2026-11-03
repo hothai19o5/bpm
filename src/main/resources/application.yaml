@@ -35,6 +35,8 @@ bpm:
       issuer: ${JWT_ISSUER:https://bpm.local}
       audience: ${JWT_AUDIENCE:bpm-api}
       access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:30m}
+    authentication:
+      refresh-token-ttl: ${REFRESH_TOKEN_TTL:7d}
     cors:
       allowed-origins: ${CORS_ALLOWED_ORIGINS:}
 

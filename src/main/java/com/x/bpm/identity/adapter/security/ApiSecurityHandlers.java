@@ -11,6 +11,7 @@ import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
@@ -35,7 +36,13 @@ public class ApiSecurityHandlers implements AuthenticationEntryPoint, AccessDeni
     @Override
     public void handle(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response,
                        @NonNull AccessDeniedException exception) throws IOException {
-        writer.writeError(request, response, ErrorCode.FORBIDDEN,
-                ApiErrorMapping.messageFor(HttpStatus.FORBIDDEN));
+        var authentication = SecurityContextHolder
+                .getContext().getAuthentication();
+        var requiresPasswordChange = authentication != null
+                && authentication.getPrincipal() instanceof AuthenticatedAccountPrincipal principal
+                && principal.account().mustChangePassword();
+        writer.writeError(request, response, ErrorCode.FORBIDDEN, requiresPasswordChange
+                ? "Bạn phải đổi mật khẩu tạm trước khi tiếp tục."
+                : ApiErrorMapping.messageFor(HttpStatus.FORBIDDEN));
     }
 }
