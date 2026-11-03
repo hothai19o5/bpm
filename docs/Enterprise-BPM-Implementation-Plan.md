@@ -235,6 +235,8 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 **Tiến độ P2.3 ngày 03/11/2026:** P2.3a–d đã có contract, shared policy, RBAC persistence/API, Postman và test source. Xem [hướng dẫn](P2.3-Authorization-Implementation-Guide.md) và [biên bản](P2.3-Verification.md). **Toàn bộ P2.3 chưa chạy build/test/dev; chưa nghiệm thu.**
 
+**Tiến độ P2.4 ngày 03/11/2026:** P2.4a đã định nghĩa bốn strategy, input/output và failure taxonomy tại [hướng dẫn P2.4](P2.4-Assignment-Resolver-Implementation-Guide.md). **Chưa chạy build/test/dev; chưa nghiệm thu P2.4.**
+
 ## 7. Phase 3 — Nền tảng biểu mẫu động
 
 **Mục tiêu:** Tạo form bằng cấu hình, render được trên UI và kiểm tra được ở server; form version có thể được workflow tham chiếu an toàn.

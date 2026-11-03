@@ -8,6 +8,8 @@ P2.2a–d đã có [contract và implementation quản trị người dùng/tổ
 
 P2.3a–d đã có [permission catalog/shared policy/RBAC API](docs/P2.3-Authorization-Implementation-Guide.md), Postman và [ma trận test source](docs/P2.3-Verification.md). **P2.3 chưa chạy build/test/dev và chưa nghiệm thu.**
 
+P2.4a đã định nghĩa [assignment resolver contract](docs/P2.4-Assignment-Resolver-Implementation-Guide.md). **P2.4 chưa chạy build/test/dev và chưa nghiệm thu.**
+
 ## 1. Chuẩn bị lần đầu
 
 Trong PowerShell tại thư mục repository:
