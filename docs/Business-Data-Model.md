@@ -55,7 +55,8 @@ Các mapping này chưa thay thế policy, validation và transaction của các
   để chặn account/grant/version không còn hợp lệ, đọc quyền hiện tại từ DB.
   P2.1d đã có code/test source cho refresh rotation/replay và logout. P2.1e đã
   có code/test source cho đổi/reset mật khẩu, khóa và thu hồi toàn bộ phiên.
-  **P2.1d–e chưa chạy build/test; người dùng sẽ kiểm tra sau.**
+  P2.1f đã bổ sung integration-test source và hướng dẫn nghiệm thu.
+  **P2.1d–f chưa chạy build/test/dev; người dùng sẽ kiểm tra sau.**
 - Notification chỉ trả cho người nhận; audit không lưu password/token hay toàn bộ dữ liệu nhạy cảm; dữ liệu thành công theo transaction đã commit.
 
 ## 4. Build/test do người dùng chạy

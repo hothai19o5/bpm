@@ -1,5 +1,6 @@
 package com.x.bpm.identity.api;
 
+import com.x.bpm.identity.application.AccountSecurityUseCase;
 import com.x.bpm.identity.application.AuthAccountPort;
 import com.x.bpm.identity.application.NewUserAccount;
 import com.x.bpm.identity.application.PasswordHashPort;
@@ -26,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Login và /me đi qua filter chain thật với identity state trong PostgreSQL test. */
+/** Vòng đời xác thực đi qua filter chain thật với identity state trong PostgreSQL test. */
 @IsolatedPostgresTest
 @AutoConfigureMockMvc
 class AuthenticationIntegrationTest {
@@ -36,6 +37,7 @@ class AuthenticationIntegrationTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private JwtDecoder jwtDecoder;
+    @Autowired private AccountSecurityUseCase accountSecurity;
 
     @Test
     void loginPersistsOnlyRefreshHashAndMeUsesServerValidatedPrincipal() throws Exception {
@@ -290,6 +292,208 @@ class AuthenticationIntegrationTest {
                         org.hamcrest.Matchers.containsString("unknown-secret-marker"))));
     }
 
+    @Test
+    void temporaryPasswordCanBeChangedAndEveryOldTokenIsRevoked() throws Exception {
+        var username = "change-password-" + UUID.randomUUID();
+        var currentPassword = "temporary horse battery staple";
+        var newPassword = "replacement horse battery staple";
+        var account = accounts.create(new NewUserAccount(username, "Password Change User",
+                passwordHashes.hash(currentPassword), AccountStatus.ACTIVE, true));
+        var oldTokens = login(username, currentPassword);
+        var oldVersion = ((Number) jwtDecoder.decode(oldTokens.accessToken())
+                .getClaim("ver")).longValue();
+
+        mvc.perform(post("/api/v1/auth/change-password")
+                        .header("Authorization", "Bearer " + oldTokens.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(
+                                new AuthController.ChangePasswordRequest(currentPassword,
+                                        newPassword))))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().doesNotExist("Set-Cookie"))
+                .andExpect(jsonPath("$.data").doesNotExist());
+
+        mvc.perform(get("/api/v1/auth/me")
+                        .header("Authorization", "Bearer " + oldTokens.accessToken()))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(refreshBody(oldTokens.refreshToken())))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(
+                                new AuthController.LoginRequest(username, currentPassword))))
+                .andExpect(status().isUnauthorized());
+
+        var newTokens = login(username, newPassword);
+        mvc.perform(get("/api/v1/auth/me")
+                        .header("Authorization", "Bearer " + newTokens.accessToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.mustChangePassword").value(false));
+        assertThat(jdbc.queryForObject("select security_version from users where id = ?",
+                Long.class, account.id())).isEqualTo(oldVersion + 1);
+        assertThat(jdbc.queryForObject("""
+                select count(*) from login_grants
+                where user_id = ? and revoke_reason = 'password-changed'
+                """, Long.class, account.id())).isEqualTo(1);
+    }
+
+    @Test
+    void changePasswordRejectsWrongCurrentPasswordAndUnsafeReplacementWithoutLeakingThem()
+            throws Exception {
+        var username = "change-password-errors-" + UUID.randomUUID();
+        var currentPassword = "correct horse battery staple";
+        accounts.create(new NewUserAccount(username, "Password Error User",
+                passwordHashes.hash(currentPassword), AccountStatus.ACTIVE, false));
+        var tokens = login(username, currentPassword);
+
+        mvc.perform(post("/api/v1/auth/change-password")
+                        .header("Authorization", "Bearer " + tokens.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(
+                                new AuthController.ChangePasswordRequest("wrong-secret-marker",
+                                        "replacement horse battery staple"))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("wrong-secret-marker"))));
+
+        mvc.perform(post("/api/v1/auth/change-password")
+                        .header("Authorization", "Bearer " + tokens.accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(
+                                new AuthController.ChangePasswordRequest(currentPassword,
+                                        "unsafe-marker"))))
+                .andExpect(status().is(422))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details[0].field").value("newPassword"))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("unsafe-marker"))));
+
+        mvc.perform(get("/api/v1/auth/me")
+                        .header("Authorization", "Bearer " + tokens.accessToken()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void deactivationAndReactivationNeverRestoreTokensIssuedBeforeTheLock() throws Exception {
+        var username = "account-lock-" + UUID.randomUUID();
+        var password = "correct horse battery staple";
+        var account = accounts.create(new NewUserAccount(username, "Account Lock User",
+                passwordHashes.hash(password), AccountStatus.ACTIVE, false));
+        var oldTokens = login(username, password);
+
+        accountSecurity.deactivate(account.id());
+        mvc.perform(get("/api/v1/auth/me")
+                        .header("Authorization", "Bearer " + oldTokens.accessToken()))
+                .andExpect(status().isUnauthorized());
+        accountSecurity.reactivate(account.id());
+
+        mvc.perform(get("/api/v1/auth/me")
+                        .header("Authorization", "Bearer " + oldTokens.accessToken()))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(refreshBody(oldTokens.refreshToken())))
+                .andExpect(status().isUnauthorized());
+        var newTokens = login(username, password);
+        mvc.perform(get("/api/v1/auth/me")
+                        .header("Authorization", "Bearer " + newTokens.accessToken()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void passwordResetRevokesAllGrantsAndRequiresTheReplacementPasswordToBeChanged()
+            throws Exception {
+        var username = "password-reset-" + UUID.randomUUID();
+        var oldPassword = "correct horse battery staple";
+        var temporaryPassword = "temporary replacement password";
+        var account = accounts.create(new NewUserAccount(username, "Password Reset User",
+                passwordHashes.hash(oldPassword), AccountStatus.ACTIVE, false));
+        var first = login(username, oldPassword);
+        var second = login(username, oldPassword);
+
+        accountSecurity.resetPassword(account.id(), temporaryPassword);
+
+        for (var tokens : List.of(first, second)) {
+            mvc.perform(get("/api/v1/auth/me")
+                            .header("Authorization", "Bearer " + tokens.accessToken()))
+                    .andExpect(status().isUnauthorized());
+            mvc.perform(post("/api/v1/auth/refresh")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(refreshBody(tokens.refreshToken())))
+                    .andExpect(status().isUnauthorized());
+        }
+        mvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(
+                                new AuthController.LoginRequest(username, oldPassword))))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(
+                                new AuthController.LoginRequest(username, temporaryPassword))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.mustChangePassword").value(true));
+        assertThat(jdbc.queryForObject("""
+                select count(*) from login_grants
+                where user_id = ? and revoke_reason = 'password-reset'
+                """, Long.class, account.id())).isEqualTo(2);
+    }
+
+    @Test
+    void concurrentRefreshAndPasswordChangeCannotLeaveAUsableOldGrant() throws Exception {
+        var username = "refresh-change-race-" + UUID.randomUUID();
+        var currentPassword = "correct horse battery staple";
+        var newPassword = "replacement horse battery staple";
+        accounts.create(new NewUserAccount(username, "Refresh Change Race User",
+                passwordHashes.hash(currentPassword), AccountStatus.ACTIVE, false));
+        var oldTokens = login(username, currentPassword);
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        RefreshAttempt refreshAttempt;
+        try {
+            var refreshCall = executor.submit(() -> performRefreshAttemptAfter(start,
+                    refreshBody(oldTokens.refreshToken())));
+            var passwordCall = executor.submit(() -> {
+                start.await();
+                return mvc.perform(post("/api/v1/auth/change-password")
+                                .header("Authorization", "Bearer " + oldTokens.accessToken())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsBytes(
+                                        new AuthController.ChangePasswordRequest(currentPassword,
+                                                newPassword))))
+                        .andReturn().getResponse().getStatus();
+            });
+            start.countDown();
+            refreshAttempt = refreshCall.get();
+            assertThat(passwordCall.get()).isEqualTo(200);
+            assertThat(refreshAttempt.status()).isIn(200, 401);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        mvc.perform(get("/api/v1/auth/me")
+                        .header("Authorization", "Bearer " + oldTokens.accessToken()))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(refreshBody(oldTokens.refreshToken())))
+                .andExpect(status().isUnauthorized());
+        if (refreshAttempt.status() == 200) {
+            var data = objectMapper.readTree(refreshAttempt.body()).get("data");
+            mvc.perform(get("/api/v1/auth/me")
+                            .header("Authorization", "Bearer "
+                                    + data.get("accessToken").asString()))
+                    .andExpect(status().isUnauthorized());
+            mvc.perform(post("/api/v1/auth/refresh")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(refreshBody(data.get("refreshToken").asString())))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
     private Tokens login(String username, String password) throws Exception {
         var result = mvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -313,6 +517,18 @@ class AuthenticationIntegrationTest {
                 .andReturn().getResponse().getStatus();
     }
 
+    private RefreshAttempt performRefreshAttemptAfter(CountDownLatch start, byte[] requestBody)
+            throws Exception {
+        start.await();
+        var response = mvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON).content(requestBody))
+                .andReturn().getResponse();
+        return new RefreshAttempt(response.getStatus(), response.getContentAsString());
+    }
+
     private record Tokens(String accessToken, String refreshToken) {
+    }
+
+    private record RefreshAttempt(int status, String body) {
     }
 }
