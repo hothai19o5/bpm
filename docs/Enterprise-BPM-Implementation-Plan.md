@@ -237,6 +237,10 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 **Tiến độ P2.4 ngày 03/11/2026:** P2.4a–d đã có contract, resolver Java thuần, directory adapter identity/organization và test source. Xem [hướng dẫn](P2.4-Assignment-Resolver-Implementation-Guide.md) và [biên bản](P2.4-Verification.md). **Toàn bộ P2.4 chưa chạy build/test/dev; chưa nghiệm thu.**
 
+**Tiến độ P2.5 ngày 03/11/2026:** frontend đã có shell, auth/session, state nền và đã chuyển sang source component gốc shadcn/ui. Build/lint/test/browser/backend thật chưa chạy; chưa nghiệm thu.
+
+**Tiến độ P2.6 ngày 03/11/2026:** đã có source màn quản trị tài khoản/hồ sơ, role/permission, phòng ban/trưởng phòng/chức danh; route nối permission và API P2.2/P2.3. Backend đã có recorder audit transaction cho thay đổi quản trị và test source. Xem [hướng dẫn](P2.6-Administration-Implementation-Guide.md) và [biên bản](P2.6-Verification.md). **Toàn bộ P2.6 chưa chạy build/test/dev/Postman/browser; chưa nghiệm thu.**
+
 ## 7. Phase 3 — Nền tảng biểu mẫu động
 
 **Mục tiêu:** Tạo form bằng cấu hình, render được trên UI và kiểm tra được ở server; form version có thể được workflow tham chiếu an toàn.
