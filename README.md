@@ -4,6 +4,8 @@ Cấu hình dùng Java 25, Spring Boot 4.1.2, Flowable 8.0.0 theo `pom.xml` và 
 
 **Trạng thái ngày 03/11/2026:** Người dùng xác nhận P1.4/P1.5, P1.6, business model/schema và P2.1a–c đã hoàn thành. P2.1d–e đã có implementation/test source cho refresh/logout, đổi/reset mật khẩu, khóa/mở khóa và thu hồi phiên. P2.1f đã bổ sung integration-test source và [biên bản kiểm chứng](docs/P2.1-Verification.md). **P2.1d–f chưa được chạy build/test/dev và chưa nghiệm thu; người dùng sẽ kiểm tra sau.** Chưa có kết quả GitHub Actions.
 
+P2.2a đã định nghĩa [contract quản trị người dùng và tổ chức](docs/P2.2-Organization-Implementation-Guide.md). **P2.2 chưa chạy build/test/dev và chưa nghiệm thu.**
+
 ## 1. Chuẩn bị lần đầu
 
 Trong PowerShell tại thư mục repository:

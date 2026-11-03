@@ -231,6 +231,8 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 **Điều kiện chuyển phase:** Đăng nhập, tổ chức, policy và shell hoạt động với API thật. Nền authorization phải được tái sử dụng cho form/process/record/task ở các phase sau.
 
+**Tiến độ P2.2 ngày 03/11/2026:** P2.2a đã định nghĩa contract, invariant, route và permission boundary tại [hướng dẫn P2.2](P2.2-Organization-Implementation-Guide.md). **Chưa chạy build/test/dev; chưa nghiệm thu P2.2.**
+
 ## 7. Phase 3 — Nền tảng biểu mẫu động
 
 **Mục tiêu:** Tạo form bằng cấu hình, render được trên UI và kiểm tra được ở server; form version có thể được workflow tham chiếu an toàn.
