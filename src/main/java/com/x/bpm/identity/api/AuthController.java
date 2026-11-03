@@ -3,7 +3,11 @@ package com.x.bpm.identity.api;
 import com.x.bpm.identity.application.LoginCommand;
 import com.x.bpm.identity.application.LoginResult;
 import com.x.bpm.identity.application.LoginUseCase;
+import com.x.bpm.identity.application.LogoutUseCase;
 import com.x.bpm.identity.application.MeUseCase;
+import com.x.bpm.identity.application.RefreshTokenCommand;
+import com.x.bpm.identity.application.RefreshTokenResult;
+import com.x.bpm.identity.application.RefreshTokenUseCase;
 import com.x.bpm.shared.api.ApiResponse;
 import com.x.bpm.shared.api.ApiResponseFactory;
 import com.x.bpm.shared.error.ApplicationException;
@@ -20,18 +24,41 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** HTTP adapter mỏng cho login và danh tính hiện tại. */
+/** HTTP adapter mỏng cho login, refresh, logout và danh tính hiện tại. */
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
     private final LoginUseCase login;
+    private final RefreshTokenUseCase refresh;
+    private final LogoutUseCase logout;
     private final MeUseCase me;
     private final ApiResponseFactory responses;
 
-    public AuthController(LoginUseCase login, MeUseCase me, ApiResponseFactory responses) {
+    public AuthController(LoginUseCase login, RefreshTokenUseCase refresh, LogoutUseCase logout,
+            MeUseCase me, ApiResponseFactory responses) {
         this.login = login;
+        this.refresh = refresh;
+        this.logout = logout;
         this.me = me;
         this.responses = responses;
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<ApiResponse<AuthTokenResponse>> refresh(
+            @RequestBody RefreshTokenRequest body, HttpServletRequest request) {
+        validateRefreshTokenRequest(body);
+        var result = refresh.refresh(new RefreshTokenCommand(body.refreshToken()));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(responses.success(AuthTokenResponse.from(result), request));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout(@RequestBody RefreshTokenRequest body,
+            HttpServletRequest request) {
+        validateRefreshTokenRequest(body);
+        logout.logout(new RefreshTokenCommand(body.refreshToken()));
+        ApiResponse<Void> response = responses.success(null, request);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(response);
     }
 
     @PostMapping("/login")
@@ -65,10 +92,27 @@ public class AuthController {
         }
     }
 
+    public record RefreshTokenRequest(String refreshToken) {
+        @Override
+        public String toString() {
+            return "RefreshTokenRequest[refreshToken=<redacted>]";
+        }
+    }
+
     public record AuthTokenResponse(String accessToken, String tokenType, long expiresIn,
             Instant expiresAt, String refreshToken, Instant refreshExpiresAt,
             boolean mustChangePassword, UserResponse user) {
         static AuthTokenResponse from(LoginResult result) {
+            var access = result.accessToken();
+            var user = result.user();
+            return new AuthTokenResponse(access.accessToken(), access.tokenType(),
+                    access.expiresIn(), access.expiresAt(), result.refreshToken(),
+                    result.refreshExpiresAt(), result.mustChangePassword(),
+                    new UserResponse(user.id(), user.username(), user.displayName(),
+                            user.permissions()));
+        }
+
+        static AuthTokenResponse from(RefreshTokenResult result) {
             var access = result.accessToken();
             var user = result.user();
             return new AuthTokenResponse(access.accessToken(), access.tokenType(),
@@ -98,6 +142,14 @@ public class AuthController {
             Set<String> permissions, boolean mustChangePassword) {
         public MeResponse {
             permissions = Set.copyOf(permissions);
+        }
+    }
+
+    private static void validateRefreshTokenRequest(RefreshTokenRequest body) {
+        if (body == null || body.refreshToken() == null || body.refreshToken().isBlank()
+                || body.refreshToken().codePointCount(0, body.refreshToken().length()) > 512) {
+            throw new ApplicationException(ErrorCode.INVALID_REQUEST,
+                    "Refresh token không hợp lệ.");
         }
     }
 }

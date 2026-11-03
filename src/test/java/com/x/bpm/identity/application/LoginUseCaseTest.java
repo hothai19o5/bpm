@@ -127,5 +127,10 @@ class LoginUseCaseTest {
         public <T> T required(Supplier<T> work) {
             return work.get();
         }
+
+        @Override
+        public <T> T requiresNew(Supplier<T> work) {
+            return work.get();
+        }
     }
 }

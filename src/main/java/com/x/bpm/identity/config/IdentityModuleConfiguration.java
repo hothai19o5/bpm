@@ -5,8 +5,10 @@ import com.x.bpm.identity.application.AuthAccountPort;
 import com.x.bpm.identity.application.AuthGrantPort;
 import com.x.bpm.identity.application.CurrentAccountProvider;
 import com.x.bpm.identity.application.LoginUseCase;
+import com.x.bpm.identity.application.LogoutUseCase;
 import com.x.bpm.identity.application.MeUseCase;
 import com.x.bpm.identity.application.PasswordHashPort;
+import com.x.bpm.identity.application.RefreshTokenUseCase;
 import com.x.bpm.identity.application.RefreshTokenIssuer;
 import com.x.bpm.identity.application.ResolveAuthenticatedActorUseCase;
 import com.x.bpm.identity.application.TransactionRunner;
@@ -41,6 +43,20 @@ public class IdentityModuleConfiguration {
             AuthAccountPort accounts, AuthGrantPort grants, TransactionRunner transactions,
             Clock clock) {
         return new ResolveAuthenticatedActorUseCase(accounts, grants, transactions, clock);
+    }
+
+    @Bean
+    public RefreshTokenUseCase refreshTokenUseCase(AuthAccountPort accounts, AuthGrantPort grants,
+            RefreshTokenIssuer refreshTokens, AccessTokenIssuer accessTokens,
+            TransactionRunner transactions, Clock clock) {
+        return new RefreshTokenUseCase(accounts, grants, refreshTokens, accessTokens,
+                transactions, clock);
+    }
+
+    @Bean
+    public LogoutUseCase logoutUseCase(AuthAccountPort accounts, AuthGrantPort grants,
+            RefreshTokenIssuer refreshTokens, TransactionRunner transactions, Clock clock) {
+        return new LogoutUseCase(accounts, grants, refreshTokens, transactions, clock);
     }
 
     @Bean

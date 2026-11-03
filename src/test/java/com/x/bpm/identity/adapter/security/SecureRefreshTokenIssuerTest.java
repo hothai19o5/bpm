@@ -19,6 +19,7 @@ class SecureRefreshTokenIssuerTest {
         var expectedHash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                 .digest(first.rawToken().getBytes(StandardCharsets.US_ASCII)));
         assertThat(first.tokenHash()).isEqualTo(expectedHash);
+        assertThat(issuer.hash(first.rawToken())).isEqualTo(expectedHash);
         assertThat(first.toString()).doesNotContain(first.rawToken()).doesNotContain(first.tokenHash());
     }
 }

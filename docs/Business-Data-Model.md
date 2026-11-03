@@ -53,7 +53,8 @@ Các mapping này chưa thay thế policy, validation và transaction của các
 - Kiểm tra JSON Schema/quyền trường, tối đa 10 tệp/hồ sơ, loại tệp, upload/cleanup thực tế và download có quyền.
 - P2.1b đã thêm persistence boundary; P2.1c đã nối login và security pipeline
   để chặn account/grant/version không còn hợp lệ, đọc quyền hiện tại từ DB.
-  Refresh rotation/replay, logout và chặn token cũ khi đổi mật khẩu thuộc P2.1d–e.
+  P2.1d đã có code/test source cho refresh rotation/replay và logout, đang chờ
+  kiểm chứng; chặn token cũ khi đổi mật khẩu thuộc P2.1e.
 - Notification chỉ trả cho người nhận; audit không lưu password/token hay toàn bộ dữ liệu nhạy cảm; dữ liệu thành công theo transaction đã commit.
 
 ## 4. Build/test do người dùng chạy

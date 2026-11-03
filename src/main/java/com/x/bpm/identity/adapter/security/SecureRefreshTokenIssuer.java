@@ -30,13 +30,17 @@ public class SecureRefreshTokenIssuer implements RefreshTokenIssuer {
         var bytes = new byte[TOKEN_BYTES];
         random.nextBytes(bytes);
         var rawToken = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        return new IssuedRefreshToken(rawToken, sha256(rawToken));
+        return new IssuedRefreshToken(rawToken, hash(rawToken));
     }
 
-    private static String sha256(String value) {
+    @Override
+    public String hash(String rawToken) {
+        if (rawToken == null || rawToken.isBlank()) {
+            throw new IllegalArgumentException("rawToken must not be blank");
+        }
         try {
             var digest = MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(StandardCharsets.US_ASCII));
+                    .digest(rawToken.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is required by the Java runtime", exception);
