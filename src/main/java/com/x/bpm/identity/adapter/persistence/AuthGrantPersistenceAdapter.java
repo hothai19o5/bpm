@@ -7,6 +7,7 @@ import com.x.bpm.identity.domain.LoginGrant;
 import com.x.bpm.identity.domain.RefreshCredential;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -75,6 +76,12 @@ public class AuthGrantPersistenceAdapter implements AuthGrantPort {
         entity.setRevokedAt(grant.revokedAt());
         entity.setRevokeReason(grant.revokeReason());
         return IdentityPersistenceMapper.toDomain(grants.saveAndFlush(entity));
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public List<UUID> findUnrevokedGrantIdsByUserId(UUID userId) {
+        return List.copyOf(grants.findUnrevokedIdsByUserId(userId));
     }
 
     @Override

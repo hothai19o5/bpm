@@ -1,5 +1,7 @@
 package com.x.bpm.identity.api;
 
+import com.x.bpm.identity.application.ChangePasswordCommand;
+import com.x.bpm.identity.application.ChangePasswordUseCase;
 import com.x.bpm.identity.application.LoginCommand;
 import com.x.bpm.identity.application.LoginResult;
 import com.x.bpm.identity.application.LoginUseCase;
@@ -24,7 +26,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** HTTP adapter mỏng cho login, refresh, logout và danh tính hiện tại. */
+/** HTTP adapter mỏng cho vòng đời xác thực và danh tính hiện tại. */
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
@@ -32,14 +34,16 @@ public class AuthController {
     private final RefreshTokenUseCase refresh;
     private final LogoutUseCase logout;
     private final MeUseCase me;
+    private final ChangePasswordUseCase changePassword;
     private final ApiResponseFactory responses;
 
     public AuthController(LoginUseCase login, RefreshTokenUseCase refresh, LogoutUseCase logout,
-            MeUseCase me, ApiResponseFactory responses) {
+            MeUseCase me, ChangePasswordUseCase changePassword, ApiResponseFactory responses) {
         this.login = login;
         this.refresh = refresh;
         this.logout = logout;
         this.me = me;
+        this.changePassword = changePassword;
         this.responses = responses;
     }
 
@@ -85,6 +89,21 @@ public class AuthController {
                 .body(responses.success(body, request));
     }
 
+    @PostMapping("/change-password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @RequestBody ChangePasswordRequest body, HttpServletRequest request) {
+        if (body == null || body.currentPassword() == null || body.currentPassword().isBlank()
+                || body.newPassword() == null || body.newPassword().isBlank()
+                || body.currentPassword().codePointCount(0, body.currentPassword().length()) > 128) {
+            throw new ApplicationException(ErrorCode.INVALID_REQUEST,
+                    "Current password hoặc new password không hợp lệ.");
+        }
+        changePassword.changePassword(new ChangePasswordCommand(body.currentPassword(),
+                body.newPassword()));
+        ApiResponse<Void> response = responses.success(null, request);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(response);
+    }
+
     public record LoginRequest(String username, String password) {
         @Override
         public String toString() {
@@ -96,6 +115,13 @@ public class AuthController {
         @Override
         public String toString() {
             return "RefreshTokenRequest[refreshToken=<redacted>]";
+        }
+    }
+
+    public record ChangePasswordRequest(String currentPassword, String newPassword) {
+        @Override
+        public String toString() {
+            return "ChangePasswordRequest[currentPassword=<redacted>, newPassword=<redacted>]";
         }
     }
 

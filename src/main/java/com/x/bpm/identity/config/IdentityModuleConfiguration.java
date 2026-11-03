@@ -1,8 +1,10 @@
 package com.x.bpm.identity.config;
 
 import com.x.bpm.identity.application.AccessTokenIssuer;
+import com.x.bpm.identity.application.AccountSecurityUseCase;
 import com.x.bpm.identity.application.AuthAccountPort;
 import com.x.bpm.identity.application.AuthGrantPort;
+import com.x.bpm.identity.application.ChangePasswordUseCase;
 import com.x.bpm.identity.application.CurrentAccountProvider;
 import com.x.bpm.identity.application.LoginUseCase;
 import com.x.bpm.identity.application.LogoutUseCase;
@@ -57,6 +59,22 @@ public class IdentityModuleConfiguration {
     public LogoutUseCase logoutUseCase(AuthAccountPort accounts, AuthGrantPort grants,
             RefreshTokenIssuer refreshTokens, TransactionRunner transactions, Clock clock) {
         return new LogoutUseCase(accounts, grants, refreshTokens, transactions, clock);
+    }
+
+    @Bean
+    public ChangePasswordUseCase changePasswordUseCase(CurrentAccountProvider currentAccounts,
+            AuthAccountPort accounts, AuthGrantPort grants, PasswordHashPort passwordHashes,
+            PasswordPolicy passwordPolicy, TransactionRunner transactions, Clock clock) {
+        return new ChangePasswordUseCase(currentAccounts, accounts, grants, passwordHashes,
+                passwordPolicy, transactions, clock);
+    }
+
+    @Bean
+    public AccountSecurityUseCase accountSecurityUseCase(AuthAccountPort accounts,
+            AuthGrantPort grants, PasswordHashPort passwordHashes, PasswordPolicy passwordPolicy,
+            TransactionRunner transactions, Clock clock) {
+        return new AccountSecurityUseCase(accounts, grants, passwordHashes, passwordPolicy,
+                transactions, clock);
     }
 
     @Bean

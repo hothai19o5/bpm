@@ -15,3 +15,13 @@ values:
     enabled: false
     type: secret
     description: Login password; configure locally before use and never commit a real value
+  - key: currentPassword
+    value: ''
+    enabled: false
+    type: secret
+    description: Current password for the Change Password request; configure only in the local environment
+  - key: newPassword
+    value: ''
+    enabled: false
+    type: secret
+    description: New password for the Change Password request; configure only in the local environment

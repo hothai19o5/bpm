@@ -2,7 +2,7 @@
 
 Cấu hình dùng Java 25, Spring Boot 4.1.2, Flowable 8.0.0 theo `pom.xml` và PostgreSQL 18.6. Backend, build và test chạy trong container; máy host cần Docker Desktop ở chế độ Linux containers và Docker Compose v2 có hỗ trợ `up --wait`.
 
-**Trạng thái ngày 03/11/2026:** Người dùng xác nhận P1.4/P1.5, P1.6, business model/schema và P2.1a–c đã hoàn thành. P2.1d đã có code và test source cho refresh rotation, replay revoke, concurrency và logout phía server; đang chờ người dùng chạy build/test nên chưa chốt mốc. Agent không chạy build/test; chưa có kết quả GitHub Actions.
+**Trạng thái ngày 03/11/2026:** Người dùng xác nhận P1.4/P1.5, P1.6, business model/schema và P2.1a–c đã hoàn thành. P2.1d đã có code/test source cho refresh rotation, replay revoke, concurrency và logout. P2.1e đã có code/test source cho đổi/reset mật khẩu, khóa/mở khóa và thu hồi toàn bộ phiên. **P2.1d–e chưa được chạy build/test và chưa nghiệm thu; người dùng sẽ kiểm tra sau.** Chưa có kết quả GitHub Actions.
 
 ## 1. Chuẩn bị lần đầu
 

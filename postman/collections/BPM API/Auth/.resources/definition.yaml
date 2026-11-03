@@ -7,6 +7,7 @@ description: |-
   - POST /refresh  - Exchange a refresh token for a new token pair
   - POST /logout   - Invalidate the current refresh token
   - GET  /me       - Return the currently authenticated user's identity and permissions
+  - POST /change-password - Change the current user's password and revoke all sessions
 
   The Login and Refresh Token requests automatically save tokens to collection variables
   (accessToken, refreshToken). All other authenticated requests inherit Bearer auth from

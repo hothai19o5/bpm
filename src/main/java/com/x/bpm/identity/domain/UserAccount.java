@@ -95,6 +95,11 @@ public final class UserAccount {
                 false, nextSecurityVersion());
     }
 
+    public UserAccount resetPasswordHash(String newPasswordHash) {
+        return copy(requireText(newPasswordHash, "newPasswordHash"), status,
+                true, nextSecurityVersion());
+    }
+
     public UserAccount deactivate() {
         if (status == AccountStatus.INACTIVE) {
             return this;
