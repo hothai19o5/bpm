@@ -6,6 +6,8 @@ Cấu hình dùng Java 25, Spring Boot 4.1.2, Flowable 8.0.0 theo `pom.xml` và 
 
 P2.2a–d đã có [contract và implementation quản trị người dùng/tổ chức](docs/P2.2-Organization-Implementation-Guide.md), Postman và [test source/biên bản](docs/P2.2-Verification.md). **P2.2 chưa chạy build/test/dev và chưa nghiệm thu.**
 
+P2.3a đã định nghĩa [permission catalog và policy contract](docs/P2.3-Authorization-Implementation-Guide.md). **P2.3 chưa chạy build/test/dev và chưa nghiệm thu.**
+
 ## 1. Chuẩn bị lần đầu
 
 Trong PowerShell tại thư mục repository:
