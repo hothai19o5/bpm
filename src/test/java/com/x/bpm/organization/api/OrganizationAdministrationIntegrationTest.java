@@ -108,11 +108,8 @@ class OrganizationAdministrationIntegrationTest {
                 values (?, current_timestamp, current_timestamp, 0, ?, ?)
                 """, UUID.randomUUID(), userId, roleId);
         for (var code : permissionCodes) {
-            var permissionId = UUID.randomUUID();
-            jdbc.update("""
-                    insert into permissions (id, created_at, updated_at, revision, code, name)
-                    values (?, current_timestamp, current_timestamp, 0, ?, ?)
-                    """, permissionId, code, code);
+            var permissionId = jdbc.queryForObject(
+                    "select id from permissions where code = ?", UUID.class, code);
             jdbc.update("""
                     insert into role_permissions (id, created_at, updated_at, revision, role_id, permission_id)
                     values (?, current_timestamp, current_timestamp, 0, ?, ?)

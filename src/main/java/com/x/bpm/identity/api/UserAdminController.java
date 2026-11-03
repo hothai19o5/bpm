@@ -1,7 +1,6 @@
 package com.x.bpm.identity.api;
 
 import com.x.bpm.identity.application.CreateManagedUserCommand;
-import com.x.bpm.identity.application.ManagedRole;
 import com.x.bpm.identity.application.ManagedUserSummary;
 import com.x.bpm.identity.application.UserAdministrationUseCase;
 import com.x.bpm.identity.domain.AccountStatus;
@@ -87,11 +86,6 @@ public class UserAdminController {
         }
         users.resetPassword(id, body.temporaryPassword());
         return responses.success(null, request);
-    }
-
-    @GetMapping("/roles")
-    public ApiResponse<List<ManagedRole>> roles(HttpServletRequest request) {
-        return responses.success(users.availableRoles(), request);
     }
 
     private static void requireCreateBody(CreateUserRequest body) {

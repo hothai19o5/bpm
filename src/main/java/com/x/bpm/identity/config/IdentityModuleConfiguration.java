@@ -13,6 +13,8 @@ import com.x.bpm.identity.application.ManagedRolePort;
 import com.x.bpm.identity.application.PasswordHashPort;
 import com.x.bpm.identity.application.RefreshTokenUseCase;
 import com.x.bpm.identity.application.RefreshTokenIssuer;
+import com.x.bpm.identity.application.RoleAdministrationPort;
+import com.x.bpm.identity.application.RoleAdministrationUseCase;
 import com.x.bpm.identity.application.ResolveAuthenticatedActorUseCase;
 import com.x.bpm.identity.application.TransactionRunner;
 import com.x.bpm.identity.application.UserAdministrationUseCase;
@@ -20,6 +22,7 @@ import com.x.bpm.identity.domain.PasswordPolicy;
 import com.x.bpm.organization.application.OrganizationManagementUseCase;
 import com.x.bpm.organization.application.OrganizationPort;
 import java.time.Clock;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -89,6 +92,17 @@ public class IdentityModuleConfiguration {
             TransactionRunner transactions) {
         return new UserAdministrationUseCase(accounts, roles, organizationPort, organizations,
                 passwordHashes, passwordPolicy, accountSecurity, transactions);
+    }
+
+    @Bean
+    public RoleAdministrationUseCase roleAdministrationUseCase(RoleAdministrationPort roles,
+            TransactionRunner transactions) {
+        return new RoleAdministrationUseCase(roles, transactions);
+    }
+
+    @Bean
+    public ApplicationRunner permissionCatalogInitializer(RoleAdministrationUseCase roles) {
+        return arguments -> roles.synchronizePermissionCatalog();
     }
 
     @Bean
