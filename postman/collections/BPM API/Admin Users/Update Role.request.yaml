@@ -1,0 +1,18 @@
+$kind: http-request
+order: 9000
+method: PUT
+url: '{{baseUrl}}/api/v1/admin/roles/{{roleId}}'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "code": "employee",
+      "name": "Employee Updated",
+      "description": "Updated employee role",
+      "active": true,
+      "permissionIds": ["{{permissionId}}"],
+      "expectedRevision": 0
+    }

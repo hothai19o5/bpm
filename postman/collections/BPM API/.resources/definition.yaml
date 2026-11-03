@@ -22,6 +22,7 @@ variables:
   departmentId: ""
   positionId: ""
   roleId: ""
+  permissionId: ""
 auth:
   type: bearer
   credentials:
