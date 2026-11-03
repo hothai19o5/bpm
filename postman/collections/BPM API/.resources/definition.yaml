@@ -1,0 +1,22 @@
+$kind: collection
+description: |-
+  REST API collection for the BPM (Business Process Management) application.
+
+  Base URL: {{baseUrl}}
+
+  ## Authentication
+  Most endpoints require a Bearer JWT access token obtained via POST /api/v1/auth/login.
+  The Login request automatically saves the accessToken and refreshToken to collection
+  variables via its post-response script.
+
+  ## Modules
+  - Auth - login, token refresh, logout, current user identity
+  - Process Definitions - list deployed process definitions (planned, not yet active)
+variables:
+  baseUrl: http://localhost:8080
+  accessToken: ""
+  refreshToken: ""
+auth:
+  type: bearer
+  credentials:
+    token: "{{accessToken}}"

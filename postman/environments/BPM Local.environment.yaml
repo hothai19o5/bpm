@@ -1,0 +1,17 @@
+name: BPM Local
+values:
+  - key: baseUrl
+    value: 'http://localhost:8080'
+    enabled: true
+    type: default
+    description: Base URL of the local BPM API server
+  - key: username
+    value: employee.one
+    enabled: true
+    type: default
+    description: Login username for the Login request
+  - key: password
+    value: ''
+    enabled: false
+    type: secret
+    description: Login password; configure locally before use and never commit a real value

@@ -1,0 +1,10 @@
+$kind: collection
+name: Process Definitions
+description: |-
+  Endpoints for querying deployed BPMN process definitions.
+
+  NOTE: The controller (ProcessDefinitionController) is implemented but not yet registered
+  as a Spring bean (@RestController annotation is pending). These requests will return 404
+  until the controller is activated.
+
+  - GET /api/v1/process-definitions - List process definitions (paginated, sortable)

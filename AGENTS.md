@@ -4,14 +4,9 @@
 Postman CLI is installed on this device, and can be used for API Engineering work.
 <!-- postman-cli:installation:end -->
 
-## Commit theo mốc triển khai
+## Postman
 
-- Sau khi hoàn thành mỗi phase lớn hoặc mỗi bước nhỏ trong kế hoạch (ví dụ P1.3, P2.1), luôn nhắc người dùng commit các thay đổi trước khi chuyển sang bước tiếp theo.
-- Khi nhắc, tóm tắt ngắn phạm vi thay đổi, nêu trạng thái kiểm tra và đề xuất một commit message phù hợp.
-- Chỉ tự tạo commit khi người dùng yêu cầu rõ; việc nhắc commit không có nghĩa là được tự động commit hoặc push.
-- Nếu mới hoàn thành phần code/cấu hình và còn chờ người dùng xác nhận build/test, ghi rõ trạng thái đó; không báo toàn bộ bước đã đạt.
-
-## Build và test
-
-- Người dùng tự chạy các lệnh build và test. Không tự chạy build/test trừ khi người dùng thay đổi chỉ dẫn này.
-- Có thể đọc source và kiểm tra cấu hình tĩnh; cung cấp các lệnh build/test cần chạy cùng kết quả mong đợi.
+- Mỗi khi thêm, sửa hoặc xóa API, cập nhật collection/environment Postman tương ứng trong cùng mốc triển khai.
+- Dùng cấu trúc Git-native Postman v3 trong `postman/`; giữ auth và biến dùng chung ở scope collection/folder, không sao chép xuống từng request nếu có thể kế thừa.
+- Không commit access token, refresh token, mật khẩu hoặc secret thật. Biến nhạy cảm phải để rỗng, đánh dấu `type: secret` và chỉ bật sau khi người dùng tự cấu hình local.
+- Trước khi commit thay đổi Postman, chạy `postman collection lint`, `postman environment lint` và `postman workspace lint`; xử lý cả error lẫn warning liên quan.

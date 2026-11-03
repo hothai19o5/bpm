@@ -1,0 +1,24 @@
+$kind: http-request
+order: 3000
+method: POST
+url: '{{baseUrl}}/api/v1/auth/logout'
+auth:
+  type: noauth
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "refreshToken": "{{refreshToken}}"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      if (pm.response.code === 200) {
+          pm.collectionVariables.set("accessToken", "");
+          pm.collectionVariables.set("refreshToken", "");
+          console.log("Logged out. Tokens cleared from collection variables.");
+      }

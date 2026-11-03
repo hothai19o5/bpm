@@ -1,0 +1,13 @@
+$kind: collection
+name: Auth
+description: |-
+  Authentication endpoints for the BPM API.
+
+  - POST /login    - Authenticate with username + password; returns access & refresh tokens
+  - POST /refresh  - Exchange a refresh token for a new token pair
+  - POST /logout   - Invalidate the current refresh token
+  - GET  /me       - Return the currently authenticated user's identity and permissions
+
+  The Login and Refresh Token requests automatically save tokens to collection variables
+  (accessToken, refreshToken). All other authenticated requests inherit Bearer auth from
+  the collection root.
