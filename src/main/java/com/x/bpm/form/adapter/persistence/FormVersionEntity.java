@@ -13,7 +13,14 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
+import jakarta.persistence.PostUpdate;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Transient;
 import java.time.Instant;
+import java.util.UUID;
+import com.x.bpm.form.domain.JsonDocument;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.Getter;
@@ -34,6 +41,33 @@ import org.hibernate.type.SqlTypes;
                 @Index(name = "ix_form_versions_2", columnList = "published_by")})
 @Check(constraints = "version_number > 0 and (status = 'DRAFT' or (published_at is not null and published_by is not null))")
 public class FormVersionEntity extends MutableEntity {
+    @Transient
+    @Getter(lombok.AccessLevel.NONE)
+    @Setter(lombok.AccessLevel.NONE)
+    private PublishedSnapshot publishedSnapshot;
+
+    @PostLoad
+    @PostPersist
+    @PostUpdate
+    void snapshotPublished() {
+        publishedSnapshot = status == Status.DRAFT ? null : new PublishedSnapshot(
+                JsonDocument.snapshot(schemaJson), JsonDocument.snapshot(uiSchemaJson),
+                formDefinition.getId(), versionNumber, createdBy.getId(),
+                publishedBy == null ? null : publishedBy.getId(), publishedAt);
+    }
+
+    @PreUpdate
+    void requirePublishedImmutable() {
+        if (publishedSnapshot != null && (status == Status.DRAFT
+                || !publishedSnapshot.equals(new PublishedSnapshot(schemaJson, uiSchemaJson,
+                        formDefinition.getId(), versionNumber, createdBy.getId(),
+                        publishedBy == null ? null : publishedBy.getId(), publishedAt)))) {
+            throw new IllegalStateException("Published form version content and publication metadata are immutable");
+        }
+    }
+
+    private record PublishedSnapshot(Map<String, Object> schema, Map<String, Object> uiSchema,
+            UUID definitionId, int versionNumber, UUID createdBy, UUID publishedBy, Instant publishedAt) { }
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "form_definition_id", nullable = false, foreignKey = @ForeignKey(name = "fk_form_versions_form_definition_id"))
     private FormDefinitionEntity formDefinition;

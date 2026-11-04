@@ -1,0 +1,14 @@
+$kind: http-request
+order: 4000
+method: POST
+url: '{{baseUrl}}/api/v1/form-definitions/{{formDefinitionId}}/validate'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "versionId": "{{formVersionId}}",
+      "expectedRevision": 0
+    }

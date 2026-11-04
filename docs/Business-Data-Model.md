@@ -16,6 +16,7 @@ Entity nằm trong `src/main/java/com/x/bpm/<module>/adapter/persistence/`, tên
 | identity | `login_grants`, `refresh_credentials` | Lần đăng nhập, thu hồi, hạn dùng, hash refresh token, thời điểm tiêu thụ. |
 | organization | `departments`, `positions`, `department_members` | Cây phòng ban, trưởng phòng, chức danh, phòng ban chính. |
 | form | `form_definitions`, `form_versions` | Danh mục, schema/UI schema JSONB, version, trạng thái, công bố. |
+| form | `form_version_operations` | P3.5 (04/11/2026): biên nhận publish/clone, unique actor/key, source revision và target version; cùng transaction với audit. |
 | process | `process_definitions`, `process_versions` | Danh mục, active version, BPMN XML, cấu hình bước/binding JSONB, form version chung, engine mapping, checksum. |
 | businessrecord | `business_records` | Mã hồ sơ, requester/phòng ban snapshot, process/form version, engine instance, dữ liệu JSONB, trạng thái và thời gian. |
 | businessrecord | `record_attachments`, `record_comments` | Metadata object storage, liên kết file tạm/chính thức, bình luận và tác giả. |
@@ -24,7 +25,7 @@ Entity nằm trong `src/main/java/com/x/bpm/<module>/adapter/persistence/`, tên
 | audit | `audit_events` | Actor tùy chọn, source, action, tài nguyên, kết quả, correlation ID, diff JSONB. |
 | notification | `notifications` | Người nhận, hồ sơ/task tùy chọn, loại, tiêu đề, nội dung, thời điểm đã đọc. |
 
-Tổng cộng **21 bảng**. Không tạo bảng runtime thay Flowable hoặc FK tới `ACT_*`. Engine IDs là tham chiếu ngoài. Các bảng mở như outbox, delegation, assignment exception và record revision chưa được tạo.
+Tổng cộng **22 bảng** (21 bảng nền và một bảng biên nhận P3.5). Mốc model nền được xác nhận ngày 03/11 vẫn là 21 bảng; phần mở rộng P3.5 được kiểm chứng riêng tại [vòng đời form version](P3.5-Form-Version-Lifecycle.md). Không tạo bảng runtime thay Flowable hoặc FK tới `ACT_*`. Engine IDs là tham chiếu ngoài. Các bảng mở như outbox, delegation, assignment exception và record revision chưa được tạo.
 
 ## 2. Quy ước và ràng buộc
 

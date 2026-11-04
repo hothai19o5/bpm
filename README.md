@@ -16,6 +16,8 @@ P3.2 đã có [validator dữ liệu và policy quyền trường dùng chung](d
 
 P3.4 đã bổ sung [API lưu draft theo revision cho form builder](docs/P3.4-Form-Builder.md), cập nhật Postman; 75 backend form tests và 68 frontend form tests đạt. Builder tại frontend dùng renderer P3.3 để preview; backend dev cần rebuild/restart để nạp endpoint mới.
 
+P3.5 đã có [validate/publish/clone và bất biến form version](docs/P3.5-Form-Version-Lifecycle.md), Idempotency-Key với biên nhận DB và test concurrency/rollback. 87 backend form tests, 74 frontend tests và Postman lint đạt. Dev cần rebuild/restart để nạp API và bảng form_version_operations mới; frontend đã nối thao tác lifecycle trong designer.
+
 ## 1. Chuẩn bị lần đầu
 
 Trong PowerShell tại thư mục repository:
