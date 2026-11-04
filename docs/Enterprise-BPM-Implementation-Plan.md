@@ -295,6 +295,8 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 **Cập nhật P4.5 ngày 05/11/2026:** Đã có validator server/allowlist XML an toàn, kiểm tra graph/DI/metadata/assignment/form/typed condition, API validate có lỗi theo elementId/field và compiler biểu thức nội bộ cố định. **Full backend: 295 đạt, 1 skipped restart opt-in; full frontend: 103 đạt**, build/lint và ba Postman lint đạt (warning nền đã ghi riêng). Xem [P4.5](P4.5-Server-Validation.md). Chưa save/publish/UI quản lý P4.6–P4.8.
 
+**Cập nhật P4.6 ngày 05/11/2026:** Đã có save draft theo revision, allowlist an toàn cho model chưa hoàn chỉnh, audit transaction, chặn stale/non-DRAFT và UI save/validate server/focus lỗi/conflict giữ nội dung. **Full backend 296 đạt + 1 skipped restart opt-in; frontend 104 đạt**, build/lint và ba Postman lint đạt. Xem [P4.6](P4.6-Draft-Save.md). Publish/lifecycle tiếp tục P4.7–P4.8.
+
 ## 9. Phase 5 — Hồ sơ, inbox và xử lý công việc xuyên suốt
 
 **Mục tiêu:** Có luồng người dùng thật từ chọn quy trình đến hoàn tất/từ chối/bổ sung. Chưa cần đủ dashboard và các khối cộng tác để chứng minh luồng này.

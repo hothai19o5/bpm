@@ -21,6 +21,12 @@ public class ProcessConfigurationController {
         this.responses = responses;
     }
 
+    @PutMapping("/{definitionId}/draft")
+    @PreAuthorize("hasAuthority('process.design')")
+    public ApiResponse<ProcessArtifact> save(@PathVariable UUID definitionId,@RequestBody SaveProcessDraft body,HttpServletRequest request) {
+        return responses.success(processes.saveDraft(definitionId,body),request);
+    }
+
     @PostMapping("/{definitionId}/validate")
     public ApiResponse<ProcessModelInput> validate(@PathVariable UUID definitionId,
             @RequestBody ProcessModelInput body, HttpServletRequest request) {

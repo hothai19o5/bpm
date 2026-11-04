@@ -30,6 +30,21 @@ public class JpaProcessStore implements ProcessStore {
 
     @Override
     @Transactional
+    public ProcessArtifact saveDraft(UUID definitionId, SaveProcessDraft command) {
+        definitions.lockById(definitionId).orElseThrow(() -> new ApplicationException(ErrorCode.NOT_FOUND,"Không tìm thấy quy trình."));
+        var version=versions.findByIdAndProcessDefinitionId(command.versionId(),definitionId).orElseThrow(() -> new ApplicationException(ErrorCode.NOT_FOUND,"Không tìm thấy version."));
+        if(version.getStatus()!=ProcessVersionEntity.Status.DRAFT)throw new ApplicationException(ErrorCode.REVISION_CONFLICT,"Chỉ được sửa bản nháp.");
+        com.x.bpm.shared.application.RevisionGuard.requireMatch(command.expectedRevision(),version.getRevision());
+        version.setBpmnXml(command.model().bpmnXml());version.setStepConfig(command.model().stepConfig());version.setFormBindings(command.model().formBindings());
+        var bindings=command.model().formBindings().values();
+        var formIds=bindings.stream().map(value -> ((java.util.Map<?,?>)value).get("formVersionId").toString()).distinct().toList();
+        for(String formId:formIds)if(entities.find(com.x.bpm.form.adapter.persistence.FormVersionEntity.class,UUID.fromString(formId))==null)throw new ApplicationException(ErrorCode.VALIDATION_FAILED,"Form version không tồn tại.");
+        version.setFormVersion(formIds.size()==1 ? entities.getReference(com.x.bpm.form.adapter.persistence.FormVersionEntity.class,UUID.fromString(formIds.getFirst())) : null);
+        return artifact(versions.saveAndFlush(version));
+    }
+
+    @Override
+    @Transactional
     public ProcessArtifact create(CreateProcess command, UUID actorId) {
         var owner = entities.find(UserEntity.class, command.ownerUserId());
         if (owner == null || owner.getStatus() != UserEntity.Status.ACTIVE)

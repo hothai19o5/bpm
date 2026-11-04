@@ -65,7 +65,9 @@ public class BpmnArtifactValidator implements ProcessValidationPort {
         if(DC.equals(ns)&&tag.equals("Bounds"))return Set.of("x","y","width","height");
         if(WAYPOINT.equals(ns)&&tag.equals("waypoint"))return Set.of("x","y");return null;
     }
-    public ProcessModelInput validate(String key,ProcessModelInput input) {
+    public ProcessModelInput validate(String key,ProcessModelInput input) { return inspect(key,input,true); }
+    public ProcessModelInput validateDraft(String key,ProcessModelInput input) { return inspect(key,input,false); }
+    private ProcessModelInput inspect(String key,ProcessModelInput input,boolean complete) {
         if(input==null)fail("model",null,"Thiếu artifact.");
         var doc=parse(input.bpmnXml());var root=doc.getDocumentElement();
         if(!MODEL.equals(root.getNamespaceURI())||!"definitions".equals(root.getLocalName()))fail("bpmnXml",null,"Cần BPMN definitions.");
@@ -119,7 +121,17 @@ public class BpmnArtifactValidator implements ProcessValidationPort {
             Map<String,Object> payload;try{payload=payloadJson.readValue(e.getTextContent(),Map.class);}catch(Exception ex){fail("extension",ownerId,"JSON metadata không hợp lệ.");return null;}
             keys(payload,Set.of("step","formVersionId"),"extension",ownerId);var step=object(payload.get("step"),"step",ownerId);
             Set<String> stepKeys=owner.getLocalName().equals("userTask")?Set.of("description","assignment","actions","fieldAccess","deadline"):owner.getLocalName().equals("sequenceFlow")?Set.of("description","condition","outcome"):Set.of("description");
-            keys(step,stepKeys,"step",ownerId);if(step.containsKey("description")&&(!(step.get("description") instanceof String text)||text.length()>4000))fail("description",ownerId,"Mô tả không hợp lệ.");if(!step.isEmpty())steps.put(ownerId,new LinkedHashMap<>(step));
+            keys(step,stepKeys,"step",ownerId);if(step.containsKey("description")&&(!(step.get("description") instanceof String text)||text.length()>4000))fail("description",ownerId,"Mô tả không hợp lệ.");for(var entry:Map.of("assignment",Set.of("strategy","specificUserId","departmentId","roleId"),"deadline",Set.of("value","unit"),"condition",Set.of("field","operator","value")).entrySet())if(step.containsKey(entry.getKey()))keys(object(step.get(entry.getKey()),entry.getKey(),ownerId),entry.getValue(),entry.getKey(),ownerId);
+            for(String nested:List.of("assignment","deadline","condition"))if(step.containsKey(nested)){
+                var value=object(step.get(nested),nested,ownerId);
+                for(var property:value.entrySet()){
+                    boolean scalar=property.getKey().equals("value");Object data=property.getValue();
+                    if(scalar ? (nested.equals("deadline") ? !(data instanceof Number) : !(data instanceof String||data instanceof Number||data instanceof Boolean)) : !(data instanceof String))fail(nested+"."+property.getKey(),ownerId,"Kiểu dữ liệu cấu hình không hợp lệ.");
+                }
+            }
+            if(step.containsKey("actions")&&(!(step.get("actions") instanceof List<?> list)||list.stream().anyMatch(a->!(a instanceof String)||!ACTIONS.contains(a))))fail("actions",ownerId,"Action không hợp lệ.");
+            if(step.containsKey("fieldAccess")){var access=object(step.get("fieldAccess"),"fieldAccess",ownerId);for(var accessValue:access.values())if(!Set.of("HIDDEN","READ_ONLY","EDITABLE").contains(Objects.toString(accessValue,"")))fail("fieldAccess",ownerId,"Quyền trường không hợp lệ.");}
+            if(!step.isEmpty())steps.put(ownerId,new LinkedHashMap<>(step));
             if(payload.containsKey("formVersionId")){if(!owner.getLocalName().equals("userTask"))fail("formVersionId",ownerId,"Chỉ UserTask được gắn form.");bindings.put(ownerId,Map.of("formVersionId",uuid(payload.get("formVersionId"),"formVersionId",ownerId).toString()));}
         }
         for(var node:nodes.values())if(node.xml.hasAttribute("default")) {
@@ -137,8 +149,7 @@ public class BpmnArtifactValidator implements ProcessValidationPort {
             if(!shape&&children(e).stream().filter(c->WAYPOINT.equals(c.getNamespaceURI())&&c.getLocalName().equals("waypoint")).count()<2)fail("di",ref,"Edge cần ít nhất hai waypoint.");
         }}
         if(!shapes.equals(nodes.keySet())||!edges.equals(flows.keySet()))fail("di",key,"Thiếu DI node/flow.");
-        topology(nodes,flows);
-        semantics(nodes,flows,steps,bindings);
+        if(complete){topology(nodes,flows);semantics(nodes,flows,steps,bindings);}
         return new ProcessModelInput(input.bpmnXml(),steps,bindings);
     }
     /** Compile only fixed internal expressions, then inspect the exact serialized XML. */

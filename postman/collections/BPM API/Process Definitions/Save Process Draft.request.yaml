@@ -1,0 +1,19 @@
+$kind: http-request
+order: 7000
+method: PUT
+url: '{{baseUrl}}/api/v1/process-definitions/{{processDefinitionId}}/draft'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "versionId": "{{processVersionId}}",
+      "expectedRevision": 0,
+      "model": {
+        "bpmnXml": "<b:definitions xmlns:b=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:d=\"http://www.omg.org/spec/BPMN/20100524/DI\" xmlns:dc=\"http://www.omg.org/spec/DD/20100524/DC\" xmlns:di=\"http://www.omg.org/spec/DD/20100524/DI\" id=\"Defs_1\" targetNamespace=\"local\"><b:process id=\"purchase-request\" isExecutable=\"true\"><b:startEvent id=\"start\"/><b:endEvent id=\"end\"/><b:sequenceFlow id=\"flow\" sourceRef=\"start\" targetRef=\"end\"/></b:process><d:BPMNDiagram id=\"diagram\"><d:BPMNPlane id=\"plane\" bpmnElement=\"purchase-request\"><d:BPMNShape id=\"start_di\" bpmnElement=\"start\"><dc:Bounds x=\"0\" y=\"0\" width=\"36\" height=\"36\"/></d:BPMNShape><d:BPMNShape id=\"end_di\" bpmnElement=\"end\"><dc:Bounds x=\"100\" y=\"0\" width=\"36\" height=\"36\"/></d:BPMNShape><d:BPMNEdge id=\"flow_di\" bpmnElement=\"flow\"><di:waypoint x=\"36\" y=\"18\"/><di:waypoint x=\"100\" y=\"18\"/></d:BPMNEdge></d:BPMNPlane></d:BPMNDiagram></b:definitions>",
+        "stepConfig": {},
+        "formBindings": {}
+      }
+    }

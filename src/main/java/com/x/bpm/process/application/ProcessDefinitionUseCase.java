@@ -31,6 +31,18 @@ public final class ProcessDefinitionUseCase {
         this.audit = audit;
     }
 
+    public ProcessArtifact saveDraft(UUID id, SaveProcessDraft command) {
+        var actor=actors.requireCurrentActor();policy.requireGranted(policy.requirePermission(actor,PermissionCatalog.PROCESS_DESIGN));
+        if(command==null||command.versionId()==null||command.expectedRevision()==null||command.expectedRevision()<0)throw new ApplicationException(ErrorCode.INVALID_REQUEST,"Thiếu version hoặc revision hợp lệ.");
+        return transactions.required(() -> {
+            var definition=store.definition(id).orElseThrow(ProcessDefinitionUseCase::missing);
+            var model=validator.validateDraft(definition.key(),command.model());
+            var saved=store.saveDraft(id,new SaveProcessDraft(command.versionId(),command.expectedRevision(),model));
+            audit.record("PROCESS_DRAFT_SAVED","PROCESS_DEFINITION",id.toString(),Map.of("versionId",command.versionId().toString(),"revision",saved.version().metadata().revision()));
+            return saved;
+        });
+    }
+
     public ProcessArtifact create(CreateProcess command) {
         var actor = actors.requireCurrentActor();
         policy.requireGranted(policy.requirePermission(actor, PermissionCatalog.PROCESS_DESIGN));

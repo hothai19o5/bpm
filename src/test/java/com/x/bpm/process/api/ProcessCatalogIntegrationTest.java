@@ -64,6 +64,24 @@ class ProcessCatalogIntegrationTest {
     }
 
     @Test
+    void savesIncompleteDraftAndDetectsStaleRevisionAndPublishedMutations() throws Exception {
+        var designer=actor("process.design","form.design","form.publish");var process=create(designer,key(),"Draft");
+        String key=process.get("definition").get("key").asString();
+        String xml="<b:definitions xmlns:b=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" xmlns:d=\"http://www.omg.org/spec/BPMN/20100524/DI\" xmlns:dc=\"http://www.omg.org/spec/DD/20100524/DC\" id=\"defs\" targetNamespace=\"local\"><b:process id=\""+key+"\" isExecutable=\"true\"><b:startEvent id=\"start\"/></b:process><d:BPMNDiagram id=\"diagram\"><d:BPMNPlane id=\"plane\" bpmnElement=\""+key+"\"><d:BPMNShape id=\"start_di\" bpmnElement=\"start\"><dc:Bounds x=\"0\" y=\"0\" width=\"36\" height=\"36\"/></d:BPMNShape></d:BPMNPlane></d:BPMNDiagram></b:definitions>";
+        var model=new ProcessModelInput(xml,Map.of(),Map.of());var command=new SaveProcessDraft(UUID.fromString(vid(process)),0L,model);String url=ROOT+"/"+id(process)+"/draft";
+        var barrier=new CyclicBarrier(2);
+        Callable<Integer> save=()->{barrier.await(30,java.util.concurrent.TimeUnit.SECONDS);return mvc.perform(put(url).header("Authorization",designer.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(command))).andReturn().getResponse().getStatus();};
+        try(var pool=Executors.newFixedThreadPool(2)){var a=pool.submit(save);var b=pool.submit(save);assertThat(java.util.List.of(a.get(60,java.util.concurrent.TimeUnit.SECONDS),b.get(60,java.util.concurrent.TimeUnit.SECONDS))).containsExactlyInAnyOrder(200,409);}
+        mvc.perform(put(url).header("Authorization",designer.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(command))).andExpect(status().isConflict());
+        mvc.perform(post(ROOT+"/"+id(process)+"/validate").header("Authorization",designer.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(model))).andExpect(status().isUnprocessableContent());
+        mvc.perform(get(versionUrl(process)).header("Authorization",designer.bearer())).andExpect(status().isOk()).andExpect(jsonPath("$.data.version.bpmnXml").value(xml));
+        mvc.perform(put(url).header("Authorization",actor("process.publish").bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(new SaveProcessDraft(UUID.fromString(vid(process)),1L,model)))).andExpect(status().isForbidden());
+        publishedFixture(designer,process,99);
+        mvc.perform(put(url).header("Authorization",designer.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(new SaveProcessDraft(UUID.fromString(vid(process)),1L,model)))).andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("select count(*) from audit_events where action = 'PROCESS_DRAFT_SAVED' and entity_id = ?",Long.class,id(process))).isEqualTo(1);
+    }
+
+    @Test
     void createsAtomicDefinitionAndEmptyDraftWithoutDeployingAndRecordsAudit() throws Exception {
         var designer = actor("process.design");
         var deployments = jdbc.queryForObject("select count(*) from flowable.act_re_deployment", Long.class);

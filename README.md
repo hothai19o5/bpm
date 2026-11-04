@@ -286,3 +286,5 @@ Tham chiếu: [Docker Compose health/dependency](https://docs.docker.com/compose
 P4.4 đã có [XML/metadata/DI round-trip](docs/P4.4-Artifact-Round-Trip.md) tại frontend, extension moddle, projection thống nhất, undo/cleanup metadata, mở BPMN/JSON và reject dữ liệu mâu thuẫn. Chưa validator server hoặc deploy engine.
 
 P4.5 đã có [validator server/XML an toàn](docs/P4.5-Server-Validation.md), API validate, kiểm tra references/graph và compiler biểu thức nội bộ. Full backend 295 đạt + 1 skipped restart opt-in; full frontend 103 đạt, ba Postman lint đạt. Save/publish/lifecycle tiếp tục P4.6–P4.8.
+
+P4.6 đã có [save draft theo revision và kiểm tra lỗi trên designer](docs/P4.6-Draft-Save.md). Full backend 296 đạt + 1 skipped restart opt-in, frontend 104 đạt; build/lint và Postman lint đạt.

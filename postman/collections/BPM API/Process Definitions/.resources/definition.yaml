@@ -9,3 +9,5 @@ description: |-
   GET definition/history/configuration requires process.design or process.publish; owner, start, catalog and monitor rights alone cannot read management metadata.
   History defaults to versionNumber,desc. Catalog sorts key/name/updatedAt asc/desc. Pages start at 0, size 1..100.
   P4.5 POST /{definitionId}/validate checks the supplied unsaved authoring artifact for process.design/process.publish; returns 422 with field/elementId details. XML process ID must match definition key. This sample uses purchase-request. Validation never deploys. Draft editing, publish and lifecycle follow later. Creating a draft never deploys to Flowable.
+
+  P4.6 PUT /{definitionId}/draft requires process.design, versionId, expectedRevision and nested model; safe incomplete drafts may save, while stale revisions and non-DRAFT versions return 409. Change revision in sample after each successful save.
