@@ -95,6 +95,6 @@ public class JpaProcessStore implements ProcessStore {
     private ProcessArtifact artifact(ProcessVersionEntity v) {
         return new ProcessArtifact(definition(v.getProcessDefinition()), new ProcessVersionConfiguration(summary(v),
                 v.getBpmnXml(), v.getStepConfig(), v.getFormBindings(), v.getFormVersion() == null ? null : v.getFormVersion().getId(),
-                v.getEngineDeploymentId(), v.getEngineDefinitionId(), v.getEngineVersion(), v.getArtifactChecksum()));
+                v.getEngineDeploymentId(), v.getEngineDefinitionId(), v.getEngineVersion(), v.getArtifactChecksum(), v.getDeploymentXml()));
     }
 }

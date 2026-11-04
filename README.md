@@ -288,3 +288,5 @@ P4.4 đã có [XML/metadata/DI round-trip](docs/P4.4-Artifact-Round-Trip.md) t�
 P4.5 đã có [validator server/XML an toàn](docs/P4.5-Server-Validation.md), API validate, kiểm tra references/graph và compiler biểu thức nội bộ. Full backend 295 đạt + 1 skipped restart opt-in; full frontend 103 đạt, ba Postman lint đạt. Save/publish/lifecycle tiếp tục P4.6–P4.8.
 
 P4.6 đã có [save draft theo revision và kiểm tra lỗi trên designer](docs/P4.6-Draft-Save.md). Full backend 296 đạt + 1 skipped restart opt-in, frontend 104 đạt; build/lint và Postman lint đạt.
+
+P4.7 đã có [publish nguyên tử/chống lặp](docs/P4.7-Atomic-Publication.md): exact deployment XML/checksum, mapping, active pointer/receipt/audit và rollback chung Flowable/JPA; UI publish theo quyền riêng, retry mất response. Full backend 300 đạt + 1 skipped restart opt-in; frontend 106 đạt (78 form + 9 model + 19 Chrome), build/lint đạt (warning cũ); ba Postman lint sạch. Log `target/P47-full-2.log`, báo cáo `target/p47-surefire-reports`; frontend `logs/P47-models.log`, `logs/P47-chrome.log`. P4.8/P5 tiếp tục.

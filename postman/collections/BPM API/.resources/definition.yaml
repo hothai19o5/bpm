@@ -29,6 +29,8 @@ variables:
   formOperationKey: ""
   processDefinitionId: ""
   processVersionId: ""
+  processOperationKey: ""
+  processRevision: "0"
 auth:
   type: bearer
   credentials:

@@ -15,10 +15,19 @@ import org.springframework.web.bind.annotation.*;
 public class ProcessConfigurationController {
     private final ProcessDefinitionUseCase processes;
     private final ApiResponseFactory responses;
+    private final PublishProcessUseCase publisher;
 
-    public ProcessConfigurationController(ProcessDefinitionUseCase processes, ApiResponseFactory responses) {
+    public ProcessConfigurationController(ProcessDefinitionUseCase processes, ApiResponseFactory responses, PublishProcessUseCase publisher) {
         this.processes = processes;
         this.responses = responses;
+        this.publisher = publisher;
+    }
+
+    @PostMapping("/{definitionId}/publish")
+    @PreAuthorize("hasAuthority('process.publish')")
+    public ApiResponse<ProcessArtifact> publish(@PathVariable UUID definitionId,@RequestBody PublishProcess body,
+            @RequestHeader("Idempotency-Key") UUID requestKey,HttpServletRequest request) {
+        return responses.success(publisher.publish(definitionId,body,requestKey),request);
     }
 
     @PutMapping("/{definitionId}/draft")

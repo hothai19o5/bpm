@@ -38,6 +38,115 @@ class ProcessCatalogIntegrationTest {
     @Autowired ObjectMapper json;
     @Autowired ProcessStore store;
     @Autowired ProcessTransactionRunner transactions;
+    @Autowired ProcessPublicationStore publications;
+    @Autowired ProcessValidationPort validator;
+    @Autowired com.x.bpm.process.application.engine.ProcessEnginePort engine;
+    @Autowired org.flowable.engine.RepositoryService engineRepository;
+    @Autowired org.flowable.engine.TaskService engineTasks;
+
+    @Test
+    void publishesOnceWithConcurrentRetryFreezesExactArtifactAndRunsCompiledOutcome() throws Exception {
+        var admin=actor("process.design","process.publish","form.design","form.publish");
+        var saved=validDraft(admin);
+        String url=ROOT+"/"+id(saved)+"/publish";
+        UUID requestKey=UUID.randomUUID();
+        var body=json.writeValueAsBytes(Map.of("versionId",vid(saved),"expectedRevision",1));
+        long before=jdbc.queryForObject("select count(*) from flowable.act_re_deployment",Long.class);
+        var barrier=new CyclicBarrier(2);
+        Callable<JsonNode> publish=()->{barrier.await(30,java.util.concurrent.TimeUnit.SECONDS);return json.readTree(mvc.perform(post(url).header("Authorization",admin.bearer()).header("Idempotency-Key",requestKey).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("data");};
+        JsonNode published;
+        try(var pool=Executors.newFixedThreadPool(2)) {
+            var a=pool.submit(publish);var b=pool.submit(publish);
+            published=a.get(60,java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(b.get(60,java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(published);
+        }
+        var version=published.get("version");
+        assertThat(version.get("metadata").get("status").asString()).isEqualTo("PUBLISHED");
+        assertThat(published.get("definition").get("activeProcessVersionId").asString()).isEqualTo(vid(saved));
+        assertThat(version.get("bpmnXml")).isEqualTo(saved.get("version").get("bpmnXml"));
+        assertThat(version.get("stepConfig")).isEqualTo(saved.get("version").get("stepConfig"));
+        assertThat(version.get("formBindings")).isEqualTo(saved.get("version").get("formBindings"));
+        String xml=version.get("deploymentXml").asString();
+        assertThat(xml).contains("conditionExpression","bpmConditions.outcome");
+        assertThat(version.get("artifactChecksum").asString()).isEqualTo(java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(xml.getBytes(java.nio.charset.StandardCharsets.UTF_8))));
+        try(var resource=engineRepository.getResourceAsStream(version.get("engineDeploymentId").asString(),saved.get("definition").get("key").asString()+".bpmn20.xml")) {
+            assertThat(new String(resource.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8)).isEqualTo(xml);
+        }
+        assertThat(jdbc.queryForObject("select count(*) from flowable.act_re_deployment",Long.class)).isEqualTo(before+1);
+        assertThat(jdbc.queryForObject("select count(*) from process_publications where process_definition_id=?",Long.class,UUID.fromString(id(saved)))).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from audit_events where action='PROCESS_PUBLISHED' and entity_id=?",Long.class,id(saved))).isEqualTo(1);
+        mvc.perform(post(url).header("Authorization",admin.bearer()).header("Idempotency-Key",requestKey).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",vid(saved),"expectedRevision",2)))).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+        mvc.perform(post(url).header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isConflict());
+        var instance=engine.start(version.get("engineDefinitionId").asString(),"p47-"+UUID.randomUUID(),Map.of());
+        var task=engineTasks.createTaskQuery().processInstanceId(instance.instanceId()).singleResult();
+        assertThat(task.getTaskDefinitionKey()).isEqualTo("review");
+        engineTasks.complete(task.getId(),Map.of("bpmOutcome","APPROVE"));
+        assertThat(engine.findRunningInstance(instance.instanceId())).isEmpty();
+        assertThat(engine.findHistory(instance.instanceId()).orElseThrow().endActivityId()).isEqualTo("end");
+    }
+
+    @Test
+    void competingDifferentPublishKeysHaveOneWinnerAndSecurityValidationPrecedeEngine() throws Exception {
+        var admin=actor("process.design","process.publish","form.design","form.publish");
+        var saved=validDraft(admin);String url=ROOT+"/"+id(saved)+"/publish";
+        byte[] body=json.writeValueAsBytes(Map.of("versionId",vid(saved),"expectedRevision",1));
+        mvc.perform(post(url).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
+        mvc.perform(post(url).header("Authorization",actor("process.design").bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
+        mvc.perform(post(url).header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest());
+        mvc.perform(post(url).header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",vid(saved),"expectedRevision",0)))).andExpect(status().isConflict());
+        var barrier=new CyclicBarrier(2);
+        Callable<Integer> publish=()->{barrier.await(30,java.util.concurrent.TimeUnit.SECONDS);return mvc.perform(post(url).header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(body)).andReturn().getResponse().getStatus();};
+        try(var pool=Executors.newFixedThreadPool(2)){var a=pool.submit(publish);var b=pool.submit(publish);assertThat(java.util.List.of(a.get(60,java.util.concurrent.TimeUnit.SECONDS),b.get(60,java.util.concurrent.TimeUnit.SECONDS))).containsExactlyInAnyOrder(200,409);}
+        var invalid=create(admin,key(),"Empty draft");
+        long deployments=jdbc.queryForObject("select count(*) from flowable.act_re_deployment",Long.class);
+        mvc.perform(post(ROOT+"/"+id(invalid)+"/publish").header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",vid(invalid),"expectedRevision",0)))).andExpect(status().isUnprocessableContent());
+        assertThat(jdbc.queryForObject("select count(*) from flowable.act_re_deployment",Long.class)).isEqualTo(deployments);
+    }
+
+    @Test
+    void publicationAuditFailureRollsBackEngineFrozenStatePointerAndReceiptThenAllowsRetry() throws Exception {
+        var admin=actor("process.design","process.publish","form.design","form.publish");var saved=validDraft(admin);
+        long before=jdbc.queryForObject("select count(*) from flowable.act_re_deployment",Long.class);
+        UUID requestKey=UUID.randomUUID();
+        var useCase=new PublishProcessUseCase(store,publications,transactions,
+                () -> new ActorContext(admin.id().toString(),true,Set.of("process.publish")),
+                (action,type,id,diff)->{throw new IllegalStateException("audit failure after deployment");},validator,engine);
+        var command=new PublishProcess(UUID.fromString(vid(saved)),1L);
+        assertThatThrownBy(()->useCase.publish(UUID.fromString(id(saved)),command,requestKey)).isInstanceOf(IllegalStateException.class).hasMessage("audit failure after deployment");
+        assertThat(jdbc.queryForObject("select count(*) from flowable.act_re_deployment",Long.class)).isEqualTo(before);
+        assertThat(jdbc.queryForObject("select status from process_versions where id=?",String.class,command.versionId())).isEqualTo("DRAFT");
+        assertThat(jdbc.queryForObject("select deployment_xml from process_versions where id=?",String.class,command.versionId())).isNull();
+        assertThat(jdbc.queryForObject("select count(*) from process_versions where id=? and engine_deployment_id is null and engine_definition_id is null and engine_version is null and artifact_checksum is null and published_at is null and published_by is null",Long.class,command.versionId())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select active_process_version_id from process_definitions where id=?",UUID.class,UUID.fromString(id(saved)))).isNull();
+        assertThat(jdbc.queryForObject("select count(*) from process_publications where request_key=?",Long.class,requestKey)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from audit_events where action='PROCESS_PUBLISHED' and entity_id=?",Long.class,id(saved))).isZero();
+        mvc.perform(post(ROOT+"/"+id(saved)+"/publish").header("Authorization",admin.bearer()).header("Idempotency-Key",requestKey).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(command))).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("select count(*) from flowable.act_re_deployment",Long.class)).isEqualTo(before+1);
+    }
+
+    @Test
+    void concurrentReuseOfPublishKeyAcrossDefinitionsRollsBackLosingDeployment() throws Exception {
+        var admin=actor("process.design","process.publish","form.design","form.publish");
+        var a=validDraft(admin);var b=validDraft(admin);UUID requestKey=UUID.randomUUID();
+        long before=jdbc.queryForObject("select count(*) from flowable.act_re_deployment",Long.class);
+        var barrier=new CyclicBarrier(2);
+        java.util.function.Function<JsonNode,Callable<Integer>> call=process->()->{
+            barrier.await(30,java.util.concurrent.TimeUnit.SECONDS);
+            return mvc.perform(post(ROOT+"/"+id(process)+"/publish").header("Authorization",admin.bearer()).header("Idempotency-Key",requestKey).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",vid(process),"expectedRevision",1)))).andReturn().getResponse().getStatus();
+        };
+        try(var pool=Executors.newFixedThreadPool(2)){var first=pool.submit(call.apply(a));var second=pool.submit(call.apply(b));assertThat(java.util.List.of(first.get(60,java.util.concurrent.TimeUnit.SECONDS),second.get(60,java.util.concurrent.TimeUnit.SECONDS))).containsExactlyInAnyOrder(200,409);}
+        assertThat(jdbc.queryForObject("select count(*) from flowable.act_re_deployment",Long.class)).isEqualTo(before+1);
+        assertThat(jdbc.queryForObject("select count(*) from process_publications where actor_id=? and request_key=?",Long.class,admin.id(),requestKey)).isEqualTo(1);
+    }
+
+    private JsonNode validDraft(TestActor admin) throws Exception {
+        var process=create(admin,key(),"P4.7 publish");UUID form=publishedForm(admin);
+        var step=Map.<String,Object>of("assignment",Map.of("strategy","REQUESTER_MANAGER"),"actions",java.util.List.of("APPROVE"));
+        String template;try(var input=getClass().getResourceAsStream("/processes/p45-authoring.xml")){template=new String(input.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);}
+        String xml=template.formatted(json.writeValueAsString(Map.of("step",step,"formVersionId",form))).replace("\"purchase\"","\""+process.get("definition").get("key").asString()+"\"");
+        var model=new ProcessModelInput(xml,Map.of("review",step,"f2",Map.of("outcome","APPROVE")),Map.of("review",Map.of("formVersionId",form.toString())));
+        return json.readTree(mvc.perform(put(ROOT+"/"+id(process)+"/draft").header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(new SaveProcessDraft(UUID.fromString(vid(process)),0L,model)))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("data");
+    }
 
     @Test
     void validatesUnsavedModelWithRealReferencesAndSecurityWithoutDeployOrAudit() throws Exception {
@@ -263,6 +372,17 @@ class ProcessCatalogIntegrationTest {
     /** Test-only mapping, not an API to bypass P4.5/P4.7. No fixture deploy reaches Flowable. */
     @SuppressWarnings("unchecked")
     private UUID publishedFixture(TestActor admin, JsonNode process, int engineVersion) throws Exception {
+        UUID formVersionId=publishedForm(admin);
+        jdbc.update("update process_versions set status = 'PUBLISHED', bpmn_xml = ?, step_config = ?::jsonb, form_bindings = ?::jsonb, form_version_id = ?, engine_deployment_id = ?, engine_definition_id = ?, engine_version = ?, artifact_checksum = ?, published_at = current_timestamp, published_by = ? where id = ?",
+                XML, json.writeValueAsString(Map.of("review", Map.of("assignment", Map.of("strategy", "REQUESTER_MANAGER"), "actions", java.util.List.of("APPROVE", "REJECT")))),
+                json.writeValueAsString(Map.of("review", Map.of("formVersionId", formVersionId))), formVersionId,
+                "fixture-" + UUID.randomUUID(), "fixture-" + UUID.randomUUID(), engineVersion, "a".repeat(64), admin.id(), UUID.fromString(vid(process)));
+        jdbc.update("update process_definitions set active_process_version_id = ? where id = ?", UUID.fromString(vid(process)), UUID.fromString(id(process)));
+        return formVersionId;
+    }
+
+    @SuppressWarnings("unchecked")
+    private UUID publishedForm(TestActor admin) throws Exception {
         Map<String, Object> body;
         try (var stream = getClass().getResourceAsStream("/forms/purchase-request.v1.json")) { body = json.readValue(stream, Map.class); }
         body.put("key", key());
@@ -272,11 +392,6 @@ class ProcessCatalogIntegrationTest {
         var formVersionId = UUID.fromString(form.get("version").get("id").asString());
         mvc.perform(post("/api/v1/form-definitions/" + formId + "/publish").header("Authorization", admin.bearer()).header("Idempotency-Key", UUID.randomUUID())
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId", formVersionId, "expectedRevision", 0)))).andExpect(status().isOk());
-        jdbc.update("update process_versions set status = 'PUBLISHED', bpmn_xml = ?, step_config = ?::jsonb, form_bindings = ?::jsonb, form_version_id = ?, engine_deployment_id = ?, engine_definition_id = ?, engine_version = ?, artifact_checksum = ?, published_at = current_timestamp, published_by = ? where id = ?",
-                XML, json.writeValueAsString(Map.of("review", Map.of("assignment", Map.of("strategy", "REQUESTER_MANAGER"), "actions", java.util.List.of("APPROVE", "REJECT")))),
-                json.writeValueAsString(Map.of("review", Map.of("formVersionId", formVersionId))), formVersionId,
-                "fixture-" + UUID.randomUUID(), "fixture-" + UUID.randomUUID(), engineVersion, "a".repeat(64), admin.id(), UUID.fromString(vid(process)));
-        jdbc.update("update process_definitions set active_process_version_id = ? where id = ?", UUID.fromString(vid(process)), UUID.fromString(id(process)));
         return formVersionId;
     }
 

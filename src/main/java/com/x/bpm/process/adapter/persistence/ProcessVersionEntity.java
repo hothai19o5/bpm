@@ -53,6 +53,10 @@ public class ProcessVersionEntity extends MutableEntity {
     @Column(name = "bpmn_xml", nullable = true, columnDefinition = "text")
     private String bpmnXml;
 
+    /** Exact validated bytes deployed to Flowable; authoring XML remains round-trip safe. */
+    @Column(name = "deployment_xml", columnDefinition = "text")
+    private String deploymentXml;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "step_config", nullable = false, columnDefinition = "jsonb")
     private Map<String, Object> stepConfig = new LinkedHashMap<>();

@@ -15,6 +15,14 @@ import org.springframework.context.annotation.Configuration;
 public class ProcessModuleConfiguration {
 
     @Bean
+    public com.x.bpm.process.application.PublishProcessUseCase publishProcessUseCase(ProcessStore store,
+            com.x.bpm.process.application.ProcessPublicationStore publications, ProcessTransactionRunner transactions,
+            CurrentActorProvider actors, AuditEventRecorder audit, com.x.bpm.process.application.ProcessValidationPort validator,
+            com.x.bpm.process.application.engine.ProcessEnginePort engine) {
+        return new com.x.bpm.process.application.PublishProcessUseCase(store,publications,transactions,actors,audit,validator,engine);
+    }
+
+    @Bean
     public ProcessDefinitionReadPolicy processDefinitionReadPolicy() {
         return new ProcessDefinitionReadPolicy();
     }

@@ -299,6 +299,8 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 ## 9. Phase 5 — Hồ sơ, inbox và xử lý công việc xuyên suốt
 
+**Cập nhật P4.7 ngày 05/11/2026:** Đã có publish theo revision/quyền riêng, compile và deploy exact artifact, mapping/checksum, active pointer, receipt/audit cùng transaction. Test cạnh tranh cùng/khác key, trùng key qua hai definition và fault injection audit chứng minh chống lặp/rollback engine. UI xác nhận công bố, dirty server và retry mất response; publisher dùng viewer. **Full backend 300 đạt + 1 skipped restart opt-in; frontend 106 đạt**, build/lint (warning cũ) và ba Postman lint 46/1/49 file sạch. Xem [P4.7](P4.7-Atomic-Publication.md). P4.8 và Phase 5 chưa hoàn thành.
+
 **Mục tiêu:** Có luồng người dùng thật từ chọn quy trình đến hoàn tất/từ chối/bổ sung. Chưa cần đủ dashboard và các khối cộng tác để chứng minh luồng này.
 
 | Bước | Mô tả việc cần làm | Yêu cầu đầu ra |
