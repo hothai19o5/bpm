@@ -43,6 +43,104 @@ class ProcessCatalogIntegrationTest {
     @Autowired com.x.bpm.process.application.engine.ProcessEnginePort engine;
     @Autowired org.flowable.engine.RepositoryService engineRepository;
     @Autowired org.flowable.engine.TaskService engineTasks;
+    @Autowired ProcessLifecycleStore lifecycleStore;
+
+    @Test
+    void lifecycleClonesDuplicatesActivatesAndRetiresWithoutInterruptingPinnedInstances() throws Exception {
+        var admin=actor("process.design","process.publish","form.design","form.publish","process.start");
+        var draft=validDraft(admin);var v1=publish(admin,draft);
+        String engineId=v1.get("version").get("engineDefinitionId").asString();
+        var running=engine.start(engineId,"p48-"+UUID.randomUUID(),Map.of());
+        UUID cloneKey=UUID.randomUUID();var clone=mutate(admin,v1,"clone",cloneKey,Map.of(),200);
+        assertThat(mutate(admin,v1,"clone",cloneKey,Map.of(),200)).isEqualTo(clone);
+        assertThat(clone.get("version").get("metadata").get("versionNumber").asInt()).isEqualTo(2);
+        assertThat(clone.get("version").get("metadata").get("status").asString()).isEqualTo("DRAFT");
+        for(String field:new String[]{"bpmnXml","stepConfig","formBindings","formVersionId"})assertThat(clone.get("version").get(field)).isEqualTo(v1.get("version").get(field));
+        assertThat(clone.get("version").get("deploymentXml").isNull()).isTrue();
+        assertThat(clone.get("version").get("engineDefinitionId").isNull()).isTrue();
+        String newKey=key();UUID duplicateKey=UUID.randomUUID();
+        var duplicate=mutate(admin,v1,"duplicate",duplicateKey,Map.of("key",newKey,"name","Independent copy"),200);
+        assertThat(mutate(admin,v1,"duplicate",duplicateKey,Map.of("key",newKey,"name","Independent copy"),200)).isEqualTo(duplicate);
+        mutate(admin,v1,"duplicate",duplicateKey,Map.of("key",newKey,"name","Changed request"),409);
+        String copiedXml=duplicate.get("version").get("bpmnXml").asString();
+        assertThat(copiedXml).contains("id=\""+newKey+"\"","bpmnElement=\""+newKey+"\"","id=\"review\"");
+        assertThat(duplicate.get("version").get("metadata").get("versionNumber").asInt()).isEqualTo(1);
+        assertThat(duplicate.get("definition").get("activeProcessVersionId").isNull()).isTrue();
+        mvc.perform(post(ROOT+"/"+id(duplicate)+"/validate").header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(new ProcessModelInput(copiedXml,json.convertValue(duplicate.get("version").get("stepConfig"),Map.class),json.convertValue(duplicate.get("version").get("formBindings"),Map.class))))).andExpect(status().isOk());
+        var v2=publish(admin,clone);
+        var chosen=mutate(admin,v1,"activate",UUID.randomUUID(),Map.of(),200);
+        assertThat(chosen.get("definition").get("activeProcessVersionId").asString()).isEqualTo(vid(v1));
+        mvc.perform(get(ROOT+"/startable").header("Authorization",admin.bearer()).param("q",draft.get("definition").get("key").asString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.items[0].versionId").value(vid(v1)));
+        UUID retireKey=UUID.randomUUID();var retired=mutate(admin,v1,"retire",retireKey,Map.of(),200);
+        assertThat(mutate(admin,v1,"retire",retireKey,Map.of(),200)).isEqualTo(retired);
+        assertThat(retired.get("definition").get("activeProcessVersionId").isNull()).isTrue();
+        assertThat(retired.get("version").get("metadata").get("status").asString()).isEqualTo("RETIRED");
+        assertThat(retired.get("version").get("deploymentXml")).isEqualTo(v1.get("version").get("deploymentXml"));
+        mvc.perform(get(ROOT+"/startable").header("Authorization",admin.bearer()).param("q",draft.get("definition").get("key").asString())).andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(0));
+        mutate(admin,retired,"activate",UUID.randomUUID(),Map.of(),409);
+        assertThat(engine.findRunningInstance(running.instanceId()).orElseThrow().definitionId()).isEqualTo(engineId);
+        assertThat(engine.findRunningInstance(running.instanceId()).orElseThrow().suspended()).isFalse();
+        var task=engineTasks.createTaskQuery().processInstanceId(running.instanceId()).singleResult();
+        engineTasks.complete(task.getId(),Map.of("bpmOutcome","APPROVE"));
+        assertThat(engine.findHistory(running.instanceId()).orElseThrow().endActivityId()).isEqualTo("end");
+        assertThat(engineRepository.createProcessDefinitionQuery().processDefinitionId(engineId).count()).isEqualTo(1);
+        var activeV2=mutate(admin,v2,"activate",UUID.randomUUID(),Map.of(),200);
+        assertThat(activeV2.get("definition").get("activeProcessVersionId").asString()).isEqualTo(vid(v2));
+        for(var event:new String[]{"PROCESS_CLONE","PROCESS_DUPLICATE","PROCESS_RETIRE"})assertThat(jdbc.queryForObject("select count(*) from audit_events where action=? and entity_id=?",Long.class,event,id(v1))).isEqualTo(1);
+    }
+
+    @Test
+    void managementAndStartCatalogFilterBeforeCountAndNeverGrantManagementToStartOrMonitor() throws Exception {
+        var admin=actor("process.design","process.publish","form.design","form.publish");var draft=validDraft(admin);
+        String q=draft.get("definition").get("key").asString();
+        mvc.perform(get(ROOT+"/management").header("Authorization",admin.bearer()).param("q",q).param("versionStatus","DRAFT").param("size","1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(1)).andExpect(jsonPath("$.data.items[0].id").value(id(draft)));
+        mvc.perform(get(ROOT+"/management").header("Authorization",admin.bearer()).param("q",q).param("versionStatus","PUBLISHED")).andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(0));
+        var published=publish(admin,draft);
+        mvc.perform(get(ROOT+"/management").header("Authorization",admin.bearer()).param("q",q).param("versionStatus","DRAFT")).andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(0));
+        mvc.perform(get(ROOT+"/management").header("Authorization",admin.bearer()).param("q",q).param("versionStatus","PUBLISHED").param("page","1").param("size","1")).andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(1)).andExpect(jsonPath("$.data.items").isEmpty());
+        mvc.perform(get(ROOT+"/management").header("Authorization",admin.bearer()).param("q","%" )).andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(0));
+        for(var permission:new String[]{"process.start","process.catalog.read","process.monitor.all","process.monitor.owned"}){
+            var reader=actor(permission);
+            mvc.perform(get(ROOT+"/management").header("Authorization",reader.bearer())).andExpect(status().isForbidden());
+            mutate(reader,published,"clone",UUID.randomUUID(),Map.of(),403);
+            mutate(reader,published,"retire",UUID.randomUUID(),Map.of(),403);
+            if(permission.equals("process.start")||permission.equals("process.catalog.read")){
+                String body=mvc.perform(get(ROOT+"/startable").header("Authorization",reader.bearer()).param("q",q)).andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(1)).andReturn().getResponse().getContentAsString();
+                assertThat(body).doesNotContain("bpmnXml","deploymentXml","engineDefinitionId","ownerUserId","stepConfig","formBindings");
+            } else mvc.perform(get(ROOT+"/startable").header("Authorization",reader.bearer())).andExpect(status().isForbidden());
+        }
+        mvc.perform(get(ROOT+"/startable").header("Authorization",admin.bearer())).andExpect(status().isForbidden());
+        for(var pair:new String[][]{{"q","x".repeat(201)},{"versionStatus","INVALID"},{"sort","ownerUserId,asc"},{"size","101"}})
+            mvc.perform(get(ROOT+"/management").header("Authorization",admin.bearer()).param(pair[0],pair[1])).andExpect(status().isBadRequest());
+        mutate(actor("process.publish"),published,"clone",UUID.randomUUID(),Map.of(),403);
+        mutate(actor("process.design"),published,"activate",UUID.randomUUID(),Map.of(),403);
+    }
+
+    @Test
+    void concurrentCloneRetriesAndAuditFailureDoNotLeaveExtraVersionsOrReceipts() throws Exception {
+        var admin=actor("process.design","process.publish","form.design","form.publish");var source=publish(admin,validDraft(admin));
+        UUID key=UUID.randomUUID();var barrier=new CyclicBarrier(2);
+        Callable<JsonNode> clone=()->{barrier.await(30,java.util.concurrent.TimeUnit.SECONDS);return mutate(admin,source,"clone",key,Map.of(),200);};
+        try(var pool=Executors.newFixedThreadPool(2)){var a=pool.submit(clone);var b=pool.submit(clone);assertThat(a.get(60,java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(b.get(60,java.util.concurrent.TimeUnit.SECONDS));}
+        var useCase=new ProcessLifecycleUseCase(store,publications,lifecycleStore,transactions,()->new ActorContext(admin.id().toString(),true,Set.of("process.design")),(action,type,id,diff)->{throw new IllegalStateException("lifecycle audit failure");},validator);
+        UUID failingKey=UUID.randomUUID();var command=new ProcessLifecycleCommand(UUID.fromString(vid(source)),source.get("version").get("metadata").get("revision").asLong(),null,null,null,null);
+        assertThatThrownBy(()->useCase.mutate(UUID.fromString(id(source)),command,failingKey,ProcessLifecycleOperation.CLONE)).isInstanceOf(IllegalStateException.class).hasMessage("lifecycle audit failure");
+        assertThat(jdbc.queryForObject("select count(*) from process_versions where process_definition_id=?",Long.class,UUID.fromString(id(source)))).isEqualTo(2);
+        assertThat(jdbc.queryForObject("select count(*) from process_lifecycle_receipts where request_key=?",Long.class,failingKey)).isZero();
+        var retried=mutate(admin,source,"clone",failingKey,Map.of(),200);assertThat(retried.get("version").get("metadata").get("versionNumber").asInt()).isEqualTo(3);
+        var stale=new java.util.LinkedHashMap<String,Object>();stale.put("versionId",vid(source));stale.put("expectedRevision",0);
+        mvc.perform(post(ROOT+"/"+id(source)+"/clone").header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(stale))).andExpect(status().isConflict());
+    }
+
+    private JsonNode mutate(TestActor actor,JsonNode source,String operation,UUID key,Map<String,Object> extra,int status) throws Exception {
+        var body=new java.util.LinkedHashMap<String,Object>(extra);body.put("versionId",vid(source));body.put("expectedRevision",source.get("version").get("metadata").get("revision").asLong());
+        return json.readTree(mvc.perform(post(ROOT+"/"+id(source)+"/"+operation).header("Authorization",actor.bearer()).header("Idempotency-Key",key).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(body))).andExpect(status().is(status)).andReturn().getResponse().getContentAsString()).get("data");
+    }
+    private JsonNode publish(TestActor actor,JsonNode source) throws Exception {
+        return json.readTree(mvc.perform(post(ROOT+"/"+id(source)+"/publish").header("Authorization",actor.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",vid(source),"expectedRevision",source.get("version").get("metadata").get("revision").asLong())))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("data");
+    }
 
     @Test
     void publishesOnceWithConcurrentRetryFreezesExactArtifactAndRunsCompiledOutcome() throws Exception {

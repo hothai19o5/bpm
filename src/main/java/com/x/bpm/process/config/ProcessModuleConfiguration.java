@@ -15,6 +15,18 @@ import org.springframework.context.annotation.Configuration;
 public class ProcessModuleConfiguration {
 
     @Bean
+    public com.x.bpm.process.application.ProcessCatalogUseCase processCatalogUseCase(com.x.bpm.process.application.ProcessCatalogStore store,CurrentActorProvider actors) {
+        return new com.x.bpm.process.application.ProcessCatalogUseCase(store,actors);
+    }
+
+    @Bean
+    public com.x.bpm.process.application.ProcessLifecycleUseCase processLifecycleUseCase(ProcessStore store,
+            com.x.bpm.process.application.ProcessPublicationStore locks,com.x.bpm.process.application.ProcessLifecycleStore lifecycle,
+            ProcessTransactionRunner transactions,CurrentActorProvider actors,AuditEventRecorder audit,com.x.bpm.process.application.ProcessValidationPort validator) {
+        return new com.x.bpm.process.application.ProcessLifecycleUseCase(store,locks,lifecycle,transactions,actors,audit,validator);
+    }
+
+    @Bean
     public com.x.bpm.process.application.PublishProcessUseCase publishProcessUseCase(ProcessStore store,
             com.x.bpm.process.application.ProcessPublicationStore publications, ProcessTransactionRunner transactions,
             CurrentActorProvider actors, AuditEventRecorder audit, com.x.bpm.process.application.ProcessValidationPort validator,

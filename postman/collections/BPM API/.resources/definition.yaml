@@ -31,6 +31,8 @@ variables:
   processVersionId: ""
   processOperationKey: ""
   processRevision: "0"
+  processCopyKey: "purchase-copy"
+  processCopyName: "Bản sao mua sắm"
 auth:
   type: bearer
   credentials:

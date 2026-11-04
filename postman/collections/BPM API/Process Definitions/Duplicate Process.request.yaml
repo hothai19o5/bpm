@@ -1,0 +1,18 @@
+$kind: http-request
+order: 14000
+method: POST
+url: '{{baseUrl}}/api/v1/process-definitions/{{processDefinitionId}}/duplicate'
+headers:
+  - key: Content-Type
+    value: application/json
+  - key: Idempotency-Key
+    value: '{{processOperationKey}}'
+body:
+  type: json
+  content: |-
+    {
+      "versionId": "{{processVersionId}}",
+      "expectedRevision": {{processRevision}},
+      "key": "{{processCopyKey}}",
+      "name": "{{processCopyName}}"
+    }

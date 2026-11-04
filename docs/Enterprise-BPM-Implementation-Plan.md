@@ -297,9 +297,11 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 **Cập nhật P4.6 ngày 05/11/2026:** Đã có save draft theo revision, allowlist an toàn cho model chưa hoàn chỉnh, audit transaction, chặn stale/non-DRAFT và UI save/validate server/focus lỗi/conflict giữ nội dung. **Full backend 296 đạt + 1 skipped restart opt-in; frontend 104 đạt**, build/lint và ba Postman lint đạt. Xem [P4.6](P4.6-Draft-Save.md). Publish/lifecycle tiếp tục P4.7–P4.8.
 
-## 9. Phase 5 — Hồ sơ, inbox và xử lý công việc xuyên suốt
-
 **Cập nhật P4.7 ngày 05/11/2026:** Đã có publish theo revision/quyền riêng, compile và deploy exact artifact, mapping/checksum, active pointer, receipt/audit cùng transaction. Test cạnh tranh cùng/khác key, trùng key qua hai definition và fault injection audit chứng minh chống lặp/rollback engine. UI xác nhận công bố, dirty server và retry mất response; publisher dùng viewer. **Full backend 300 đạt + 1 skipped restart opt-in; frontend 106 đạt**, build/lint (warning cũ) và ba Postman lint 46/1/49 file sạch. Xem [P4.7](P4.7-Atomic-Publication.md). P4.8 và Phase 5 chưa hoàn thành.
+
+**Cập nhật P4.8 ngày 05/11/2026:** Đã có catalog quản trị/start tách quyền, tìm/lọc/paging, chi tiết/lịch sử và UI clone/duplicate/activate/retire với revision/receipt/audit. Retire không dừng instance cũ, được kiểm chứng trên Flowable thật. Smoke Chrome nối API thật đã công bố mẫu mua sắm nhiều nhánh từ designer, giữ form/metadata/XML/checksum qua reload và clone. Sửa allowlist DI marker chuẩn XOR do smoke phát hiện. **Full backend 304 đạt + 1 skipped restart opt-in; frontend 111 đạt (110 regression + 1 smoke API thật)**; build/lint đạt (warning nền cũ), ba Postman lint 52/1/55 file sạch. Xem [P4.8 và runbook](P4.8-Process-Management.md). Điều kiện chuyển Phase 4 có bằng chứng cấu hình/publish; runtime người dùng theo vai trò/đủ nhánh tiếp tục Phase 5, chưa tính UAT đạt.
+
+## 9. Phase 5 — Hồ sơ, inbox và xử lý công việc xuyên suốt
 
 **Mục tiêu:** Có luồng người dùng thật từ chọn quy trình đến hoàn tất/từ chối/bổ sung. Chưa cần đủ dashboard và các khối cộng tác để chứng minh luồng này.
 

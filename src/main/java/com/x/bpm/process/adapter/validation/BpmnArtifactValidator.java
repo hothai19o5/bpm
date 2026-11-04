@@ -61,12 +61,24 @@ public class BpmnArtifactValidator implements ProcessValidationPort {
             case "sequenceFlow" -> Set.of("id","name","sourceRef","targetRef");
             case "incoming","outgoing","extensionElements","documentation" -> Set.of();default -> null;};
         if(BPM.equals(ns)&&tag.equals("configuration"))return Set.of();
-        if(DI.equals(ns))return switch(tag) {case "BPMNDiagram" -> Set.of("id","name");case "BPMNPlane","BPMNShape","BPMNEdge" -> Set.of("id","bpmnElement");case "BPMNLabel" -> Set.of();default -> null;};
+        if(DI.equals(ns))return switch(tag) {case "BPMNDiagram" -> Set.of("id","name");case "BPMNPlane","BPMNEdge" -> Set.of("id","bpmnElement");case "BPMNShape" -> Set.of("id","bpmnElement","isMarkerVisible");case "BPMNLabel" -> Set.of();default -> null;};
         if(DC.equals(ns)&&tag.equals("Bounds"))return Set.of("x","y","width","height");
         if(WAYPOINT.equals(ns)&&tag.equals("waypoint"))return Set.of("x","y");return null;
     }
     public ProcessModelInput validate(String key,ProcessModelInput input) { return inspect(key,input,true); }
     public ProcessModelInput validateDraft(String key,ProcessModelInput input) { return inspect(key,input,false); }
+    public ProcessModelInput copyToKey(String sourceKey,String targetKey,ProcessModelInput input) {
+        var model=validateDraft(sourceKey,input);var document=parse(model.bpmnXml());
+        ((Element)document.getElementsByTagNameNS(MODEL,"process").item(0)).setAttribute("id",targetKey);
+        var planes=document.getElementsByTagNameNS(DI,"BPMNPlane");
+        for(int i=0;i<planes.getLength();i++)((Element)planes.item(i)).setAttribute("bpmnElement",targetKey);
+        try {
+            var factory=javax.xml.transform.TransformerFactory.newInstance();factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING,true);
+            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD,"");factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET,"");
+            var output=new java.io.StringWriter();factory.newTransformer().transform(new javax.xml.transform.dom.DOMSource(document),new javax.xml.transform.stream.StreamResult(output));
+            return validateDraft(targetKey,new ProcessModelInput(output.toString(),model.stepConfig(),model.formBindings()));
+        }catch(ApplicationException ex){throw ex;}catch(Exception ex){fail("bpmnXml",null,"Không nhân bản được XML an toàn.");return null;}
+    }
     private ProcessModelInput inspect(String key,ProcessModelInput input,boolean complete) {
         if(input==null)fail("model",null,"Thiếu artifact.");
         var doc=parse(input.bpmnXml());var root=doc.getDocumentElement();
@@ -145,6 +157,7 @@ public class BpmnArtifactValidator implements ProcessValidationPort {
         for(int i=0;i<all.getLength();i++){var e=(Element)all.item(i);if(DI.equals(e.getNamespaceURI())&&Set.of("BPMNShape","BPMNEdge").contains(e.getLocalName())){
             String ref=e.getAttribute("bpmnElement");boolean shape=e.getLocalName().equals("BPMNShape");
             if(!(shape?nodes:flows).containsKey(ref)||!(shape?shapes:edges).add(ref))fail("di",ref,"DI tham chiếu sai hoặc bị trùng.");
+            if(shape&&e.hasAttribute("isMarkerVisible")&&(!nodes.get(ref).type.equals("exclusiveGateway")||!Set.of("true","false").contains(e.getAttribute("isMarkerVisible"))))fail("di",ref,"Marker XOR cần giá trị boolean.");
             if(shape&&children(e).stream().filter(c->DC.equals(c.getNamespaceURI())&&c.getLocalName().equals("Bounds")).count()!=1)fail("di",ref,"Shape cần một Bounds.");
             if(!shape&&children(e).stream().filter(c->WAYPOINT.equals(c.getNamespaceURI())&&c.getLocalName().equals("waypoint")).count()<2)fail("di",ref,"Edge cần ít nhất hai waypoint.");
         }}

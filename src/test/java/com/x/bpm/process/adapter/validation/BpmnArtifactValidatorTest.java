@@ -88,6 +88,16 @@ class BpmnArtifactValidatorTest {
         for(String amount:List.of("49999999","50000000","50000001")){when(execution.getVariable("bpmFormData")).thenReturn(Map.of("amount",amount));assertThat(helper.test(execution,token)).isEqualTo(!amount.equals("49999999"));}
     }
     @Test void rejectsAutomaticCycleEvenWhenAnExitExists() throws Exception {var input=xorModel();assertInvalid(new ProcessModelInput(input.bpmnXml().replace("id=\"fallback\" sourceRef=\"xor\" targetRef=\"end\"","id=\"fallback\" sourceRef=\"xor\" targetRef=\"xor\""),input.stepConfig(),input.formBindings()));}
+    @Test void acceptsModelerXorMarkerAndRejectsWrongTypeOrWrongNode() throws Exception {
+        var input=xorModel();
+        for(String value:List.of("true","false")) {
+            var marked=new ProcessModelInput(input.bpmnXml().replace("bpmnElement=\"xor\"><dc:Bounds","bpmnElement=\"xor\" isMarkerVisible=\""+value+"\"><dc:Bounds"),input.stepConfig(),input.formBindings());
+            assertThat(validator.validate("purchase",marked)).isEqualTo(marked);
+            assertThat(validator.copyToKey("purchase","independent_copy",marked).bpmnXml()).contains("isMarkerVisible=\""+value+"\"","bpmnElement=\"independent_copy\"");
+        }
+        for(String xml:List.of(input.bpmnXml().replace("bpmnElement=\"xor\"><dc:Bounds","bpmnElement=\"xor\" isMarkerVisible=\"yes\"><dc:Bounds"),input.bpmnXml().replace("bpmnElement=\"review\"><dc:Bounds","bpmnElement=\"review\" isMarkerVisible=\"true\"><dc:Bounds")))
+            assertInvalid(new ProcessModelInput(xml,input.stepConfig(),input.formBindings()));
+    }
     @Test void rejectsUnknownOrWronglyTypedXorField() throws Exception {
         var input=xorModel();String xml=input.bpmnXml().replace("\"field\":\"amount\"","\"field\":\"missing\"");var steps=new HashMap<>(input.stepConfig());steps.put("high",Map.of("condition",Map.of("field","missing","operator","GE","value","50000000")));assertInvalid(new ProcessModelInput(xml,steps,input.formBindings()));
     }
