@@ -3,6 +3,7 @@ package com.x.bpm.form.api;
 import com.x.bpm.form.application.CreateForm;
 import com.x.bpm.form.application.FormArtifact;
 import com.x.bpm.form.application.FormDefinitionUseCase;
+import com.x.bpm.form.application.SaveFormDraft;
 import com.x.bpm.shared.api.ApiResponse;
 import com.x.bpm.shared.api.ApiResponseFactory;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -36,5 +38,11 @@ public class FormDefinitionController {
     public ApiResponse<FormArtifact> version(@PathVariable UUID definitionId,
             @PathVariable UUID versionId, HttpServletRequest request) {
         return responses.success(forms.version(definitionId, versionId), request);
+    }
+
+    @PutMapping("/{definitionId}/draft")
+    public ApiResponse<FormArtifact> saveDraft(@PathVariable UUID definitionId,
+            @RequestBody SaveFormDraft body, HttpServletRequest request) {
+        return responses.success(forms.saveDraft(definitionId, body), request);
     }
 }

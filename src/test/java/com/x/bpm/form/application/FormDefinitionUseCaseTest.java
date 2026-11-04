@@ -20,6 +20,7 @@ class FormDefinitionUseCaseTest {
                 () -> new ActorContext(UUID.randomUUID().toString(), true, Set.of()),
                 new AuthorizationPolicy(), (a, b, c, d) -> { });
         assertThatThrownBy(() -> useCase.create(null)).isInstanceOf(ApplicationException.class);
+        assertThatThrownBy(() -> useCase.saveDraft(UUID.randomUUID(), null)).isInstanceOf(ApplicationException.class);
         assertThatThrownBy(() -> useCase.version(UUID.randomUUID(), UUID.randomUUID()))
                 .isInstanceOf(ApplicationException.class);
         verifyNoInteractions(store, transactions);

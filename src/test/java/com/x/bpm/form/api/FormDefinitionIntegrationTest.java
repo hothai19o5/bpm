@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -84,6 +85,70 @@ class FormDefinitionIntegrationTest {
         mvc.perform(get(url).header("Authorization", "Bearer " + token)).andExpect(status().isForbidden());
         mvc.perform(post("/api/v1/form-definitions").header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON).content("{}" )).andExpect(status().isForbidden());
+        mvc.perform(put("/api/v1/form-definitions/" + UUID.randomUUID() + "/draft")
+                .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(put("/api/v1/form-definitions/" + UUID.randomUUID() + "/draft")
+                .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void savesAndReopensDraftWithStableFieldIdsAndRejectsStaleRevisionOrPublishedVersion() throws Exception {
+        var password = "correct horse battery staple";
+        var admin = accounts.create(new NewUserAccount("p34-admin-" + UUID.randomUUID(),
+                "Form Builder Admin", passwordHashes.hash(password), AccountStatus.ACTIVE, false));
+        grantPermissions(admin.id(), "form.design");
+        var token = login(admin.username(), password);
+        Map<String, Object> payload;
+        try (var stream = getClass().getResourceAsStream("/forms/purchase-request.v1.json")) {
+            payload = objectMapper.readValue(stream, Map.class);
+        }
+        payload.put("key", "builder-" + UUID.randomUUID());
+        var created = mvc.perform(post("/api/v1/form-definitions").header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsBytes(payload)))
+                .andExpect(status().isOk()).andReturn();
+        var data = objectMapper.readTree(created.getResponse().getContentAsString()).get("data");
+        var id = data.get("definition").get("id").asString();
+        var versionId = data.get("version").get("id").asString();
+        var schema = (Map<String, Object>) payload.get("schema");
+        var properties = (Map<String, Object>) schema.get("properties");
+        ((Map<String, Object>) properties.get("itemName")).put("title", "Nhãn mới giữ ID");
+        var update = new java.util.LinkedHashMap<String, Object>();
+        update.put("versionId", versionId);
+        update.put("expectedRevision", 0);
+        update.put("schema", schema);
+        update.put("uiSchema", payload.get("uiSchema"));
+        var url = "/api/v1/form-definitions/" + id + "/draft";
+        mvc.perform(put(url).header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(update)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.version.revision").value(1));
+        mvc.perform(get("/api/v1/form-definitions/" + id + "/versions/" + versionId)
+                .header("Authorization", "Bearer " + token)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version.schema.properties.itemName.title").value("Nhãn mới giữ ID"))
+                .andExpect(jsonPath("$.data.version.uiSchema.groups[0].fields[0]").value("itemName"));
+        mvc.perform(put(url).header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(update))).andExpect(status().isConflict());
+        update.put("expectedRevision", 1);
+        mvc.perform(put("/api/v1/form-definitions/" + UUID.randomUUID() + "/draft")
+                .header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(update))).andExpect(status().isNotFound());
+        assertThat(jdbc.queryForObject("select count(*) from audit_events where entity_id = ? and action = 'FORM_DRAFT_SAVED'",
+                Long.class, id)).isEqualTo(1);
+        update.remove("expectedRevision");
+        mvc.perform(put(url).header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(update))).andExpect(status().isBadRequest());
+        update.put("expectedRevision", 1);
+        ((Map<String, Object>) properties.get("itemName")).put("readOnly", true);
+        mvc.perform(put(url).header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(update))).andExpect(status().isUnprocessableContent());
+        ((Map<String, Object>) properties.get("itemName")).remove("readOnly");
+        jdbc.update("update form_versions set status = 'PUBLISHED', published_at = current_timestamp, published_by = ? where id = ?",
+                admin.id(), UUID.fromString(versionId));
+        mvc.perform(put(url).header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(update))).andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("select revision from form_versions where id = ?", Long.class, UUID.fromString(versionId))).isEqualTo(1);
     }
 
     private String login(String username, String password) throws Exception {

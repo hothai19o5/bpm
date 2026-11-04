@@ -55,4 +55,23 @@ public final class FormDefinitionUseCase {
         return store.findVersion(definitionId, versionId).orElseThrow(() ->
                 new ApplicationException(ErrorCode.NOT_FOUND, "Không tìm thấy phiên bản biểu mẫu."));
     }
+
+    public FormArtifact saveDraft(UUID definitionId, SaveFormDraft command) {
+        var actor = actors.requireCurrentActor();
+        policy.requireGranted(policy.requirePermission(actor, PermissionCatalog.FORM_DESIGN));
+        if (command == null || command.versionId() == null || command.expectedRevision() == null
+                || command.expectedRevision() < 0) {
+            throw new ApplicationException(ErrorCode.INVALID_REQUEST, "Version và expectedRevision hợp lệ là bắt buộc.");
+        }
+        contract.validate(command.schema(), command.uiSchema());
+        var snapshot = new SaveFormDraft(command.versionId(), command.expectedRevision(),
+                JsonDocument.snapshot(command.schema()), JsonDocument.snapshot(command.uiSchema()));
+        return transactions.required(() -> {
+            var saved = store.saveDraft(definitionId, snapshot);
+            audit.record("FORM_DRAFT_SAVED", "FORM_DEFINITION", definitionId.toString(),
+                    Map.of("versionId", saved.version().id().toString(),
+                            "expectedRevision", snapshot.expectedRevision(), "revision", saved.version().revision()));
+            return saved;
+        });
+    }
 }

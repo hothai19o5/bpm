@@ -3,6 +3,8 @@ package com.x.bpm.form.adapter.persistence;
 import com.x.bpm.form.application.CreateForm;
 import com.x.bpm.form.application.FormArtifact;
 import com.x.bpm.form.application.FormStore;
+import com.x.bpm.form.application.SaveFormDraft;
+import com.x.bpm.shared.application.RevisionGuard;
 import com.x.bpm.form.domain.FormDefinition;
 import com.x.bpm.form.domain.FormVersion;
 import com.x.bpm.identity.adapter.persistence.UserEntity;
@@ -55,6 +57,20 @@ public class JpaFormStore implements FormStore {
     @Transactional(readOnly = true)
     public Optional<FormArtifact> findVersion(UUID definitionId, UUID versionId) {
         return versions.findByIdAndFormDefinitionId(versionId, definitionId).map(this::artifact);
+    }
+
+    @Override
+    @Transactional
+    public FormArtifact saveDraft(UUID definitionId, SaveFormDraft command) {
+        var version = versions.findByIdAndFormDefinitionId(command.versionId(), definitionId)
+                .orElseThrow(() -> new ApplicationException(ErrorCode.NOT_FOUND, "Không tìm thấy phiên bản biểu mẫu."));
+        if (version.getStatus() != FormVersionEntity.Status.DRAFT) {
+            throw new ApplicationException(ErrorCode.REVISION_CONFLICT, "Chỉ được sửa phiên bản biểu mẫu nháp.");
+        }
+        RevisionGuard.requireMatch(command.expectedRevision(), version.getRevision());
+        version.setSchemaJson(command.schema());
+        version.setUiSchemaJson(command.uiSchema());
+        return artifact(versions.saveAndFlush(version));
     }
 
     private FormArtifact artifact(FormVersionEntity version) {

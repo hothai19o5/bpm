@@ -262,6 +262,8 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 **Tiến độ P3.3 ngày 04/11/2026:** Frontend đã có renderer dùng chung 10 kiểu trường, ba mode nháp/task/chỉ xem, required/lỗi theo field và quyền backend cấp; patch chỉ gồm trường EDITABLE thay đổi, giữ số chính xác và hỗ trợ adapter attachment. `/admin/forms` mở fixture preview cho `form.design`. Build/lint đạt (warning cũ); **47 test frontend đạt**, đã kiểm tra tương tác Chrome với fixture. Xem `bpm-frontend/docs/P3.3-Form-Renderer.md` và `P3.3-Verification.md`. API runtime hồ sơ/task và tệp được nối ở P5/P6; chưa kiểm tra mobile/full regression backend.
 
+**Tiến độ P3.4 ngày 04/11/2026:** Đã có builder 10 kiểu trường, bố cục nhóm, ID ổn định, validation cấu hình và preview renderer P3.3. Bổ sung PUT draft có revision, chặn sửa PUBLISHED/RETIRED và audit transaction để lưu/mở lại qua API thật; publish/clone vẫn thuộc P3.5. **68 test frontend, 75 test backend form đạt; Postman 3 loại lint đạt; Chrome kiểm tra harness local.** Xem [hướng dẫn/biên bản backend](P3.4-Form-Builder.md) và `bpm-frontend/docs/P3.4-Verification.md`. Chưa smoke frontend → backend dev hoặc kiểm tra đồng thời/full regression.
+
 ## 8. Phase 4 — Workflow Designer, validate và quản lý phiên bản
 
 **Mục tiêu:** Người có quyền tự thiết kế và công bố một quy trình chạy được trong tập BPMN MVP.

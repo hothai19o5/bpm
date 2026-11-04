@@ -14,6 +14,8 @@ P3.1 đã có [hợp đồng schema/UI schema và API form](docs/P3.1-Form-Contr
 
 P3.2 đã có [validator dữ liệu và policy quyền trường dùng chung](docs/P3.2-Form-Validation-Guide.md), lọc read view, merge patch và validation theo action. [74 kiểm thử P3.1/P3.2 đạt](docs/P3.2-Verification.md), gồm 66 test mới P3.2. Service nội bộ được đăng ký Spring bean để các bước renderer/record/task tái sử dụng.
 
+P3.4 đã bổ sung [API lưu draft theo revision cho form builder](docs/P3.4-Form-Builder.md), cập nhật Postman; 75 backend form tests và 68 frontend form tests đạt. Builder tại frontend dùng renderer P3.3 để preview; backend dev cần rebuild/restart để nạp endpoint mới.
+
 ## 1. Chuẩn bị lần đầu
 
 Trong PowerShell tại thư mục repository:
