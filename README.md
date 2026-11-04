@@ -20,6 +20,8 @@ P3.5 đã có [validate/publish/clone và bất biến form version](docs/P3.5-F
 
 P3.6 đã có [danh mục/tìm/lọc, lịch sử, lựa chọn published version và preview requester/kế toán](docs/P3.6-Form-Management.md). 94 backend form tests, 78 frontend tests và ba Postman lint đạt; Chrome smoke nối API thật trên PostgreSQL test cách ly đạt. Binding vào process version tiếp tục ở P4; dev cần rebuild backend để nạp API mới.
 
+P4.1 đã có [danh mục quy trình theo scope, tạo draft v1, metadata/lịch sử và đọc cấu hình theo version](docs/P4.1-Process-Catalog.md), tái sử dụng hai bảng process hiện có. 114 backend tests (10 mới P4.1), ba Postman lint đạt; metadata quản trị chỉ dành cho `process.design`/`process.publish`, phiên bản nghiệp vụ độc lập với engine version. Canvas/save/publish/lifecycle tiếp tục ở P4.2–P4.8; cần rebuild/restart backend để dùng API mới trên dev.
+
 ## 1. Chuẩn bị lần đầu
 
 Trong PowerShell tại thư mục repository:
@@ -202,8 +204,7 @@ exception handler, response chung, Clock và correlation/logging đã được b
 commit security trước đó.
 
 Phần code P1.3 đã được rà soát tĩnh; bộ test hiện tại và build/dev đã được người
-dùng xác nhận chạy thành công ngày 02/11/2026. Controller/config process đã có body nhưng chưa đăng ký route/
-bean; adapter danh mục và danh tính thật tiếp tục ở các bước phụ thuộc schema/P2/P4.
+dùng xác nhận chạy thành công ngày 02/11/2026. P4.1 đã đăng ký route/bean process và nối adapter danh mục với persistence/danh tính thật; xem hợp đồng P4.1 ở trên.
 
 - [Hướng dẫn từng phần](docs/P1.3-Manual-Implementation-Guide.md): code map, mục đích file, trạng thái code và phần để dành cho các bước sau.
 - [Nền HTTP/security đã triển khai](docs/P1.3-API-Foundation.md): response, secret/issuer/audience/TTL, cách gửi Bearer token và lệnh kiểm tra.

@@ -6,23 +6,38 @@ import com.x.bpm.process.application.ProcessDefinitionSummary;
 import com.x.bpm.process.domain.ProcessCatalogScope;
 import com.x.bpm.shared.application.PageQuery;
 import com.x.bpm.shared.application.PageResult;
+import com.x.bpm.shared.error.ApplicationException;
+import com.x.bpm.shared.error.ErrorCode;
+import jakarta.persistence.EntityManager;
+import java.util.Set;
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Khung adapter cho danh mục của ứng dụng; CHƯA là bean và CHƯA có repository.
- * Schema/danh mục/quyền được nối ở P1.4/P2/P4; không thêm DB giả tại P1.3.
- */
+/** Chỉ đọc danh mục nghiệp vụ; lọc cùng scope trước COUNT và phân trang. */
+@Repository
+@Transactional(readOnly = true)
 public class ProcessDefinitionQueryAdapter implements ProcessDefinitionQueryPort {
+    private final EntityManager entities;
+    public ProcessDefinitionQueryAdapter(EntityManager entities) { this.entities = entities; }
 
     @Override
     public PageResult<ProcessDefinitionSummary> findVisible(ActorContext actor,
-            ProcessCatalogScope scope, PageQuery pageQuery) {
-        // TODO: Khi có model: inject repository/query component bằng constructor.
-        // TODO: Map sort allowlist key/name/updatedAt sang thuộc tính lưu trữ;
-        // từ chối trường lạ, thêm id làm tie-breaker cho thứ tự ổn định.
-        // TODO: Lọc scope + actor ở DB trước COUNT và LIMIT/OFFSET.
-        // TODO: Map kết quả sang ProcessDefinitionSummary và PageResult.
-        // TODO: Không đọc bảng ACT_* cho danh mục, không gọi Flowable ở adapter này.
-        // TODO: Giữ chưa kích hoạt khi schema/quyền chưa có; không return List.of().
-        throw new UnsupportedOperationException("TODO: ProcessDefinitionQueryAdapter.findVisible");
+            ProcessCatalogScope scope, PageQuery page) {
+        var sort = page.sort().split(",");
+        if (!Set.of("key", "name", "updatedAt").contains(sort[0]) || page.offset() > Integer.MAX_VALUE)
+            throw new ApplicationException(ErrorCode.INVALID_REQUEST, "Phân trang hoặc sort danh mục không hợp lệ.");
+        // MVP cấp quyền catalog/start toàn cục; không suy diễn quyền start từ quyền giám sát.
+        var where = scope == ProcessCatalogScope.ALL ? "" :
+                " where d.status = 'ACTIVE' and exists (select v.id from ProcessVersionEntity v"
+                + " where v = d.activeProcessVersion and v.processDefinition = d and v.status = 'PUBLISHED'"
+                + " and v.engineDefinitionId is not null)";
+        var from = " from ProcessDefinitionEntity d" + where;
+        var count = entities.createQuery("select count(d)" + from, Long.class).getSingleResult();
+        var items = entities.createQuery("select d" + from + " order by d." + sort[0] + " " + sort[1] + ", d.id asc",
+                        ProcessDefinitionEntity.class)
+                .setFirstResult((int) page.offset()).setMaxResults(page.size()).getResultList().stream()
+                .map(d -> new ProcessDefinitionSummary(d.getId().toString(), d.getKey(), d.getName(), d.getRevision(), d.getUpdatedAt()))
+                .toList();
+        return new PageResult<>(items, page.page(), page.size(), count);
     }
 }

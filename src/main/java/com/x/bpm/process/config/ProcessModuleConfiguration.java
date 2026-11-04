@@ -4,22 +4,31 @@ import com.x.bpm.identity.application.CurrentActorProvider;
 import com.x.bpm.process.application.ListProcessDefinitionsUseCase;
 import com.x.bpm.process.application.ProcessDefinitionQueryPort;
 import com.x.bpm.process.domain.ProcessDefinitionReadPolicy;
+import com.x.bpm.audit.application.AuditEventRecorder;
+import com.x.bpm.process.application.ProcessDefinitionUseCase;
+import com.x.bpm.process.application.ProcessStore;
+import com.x.bpm.process.application.ProcessTransactionRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
-/**
- * Nơi lắp ghép module; CHƯA là @Configuration, chưa có @Bean.
- * Đợi identity principal và persistence adapter thật trước khi bật endpoint mẫu.
- */
+@Configuration(proxyBeanMethods = false)
 public class ProcessModuleConfiguration {
 
-    // TODO: @Bean cùng lúc kích hoạt module sau khi có adapter identity/persistence thật.
+    @Bean
     public ProcessDefinitionReadPolicy processDefinitionReadPolicy() {
         return new ProcessDefinitionReadPolicy();
     }
 
-    // TODO: @Bean khi đã có CurrentActorProvider và ProcessDefinitionQueryPort thật.
+    @Bean
     public ListProcessDefinitionsUseCase listProcessDefinitionsUseCase(
             CurrentActorProvider currentActorProvider, ProcessDefinitionReadPolicy readPolicy,
             ProcessDefinitionQueryPort queryPort) {
         return new ListProcessDefinitionsUseCase(currentActorProvider, readPolicy, queryPort);
+    }
+
+    @Bean
+    public ProcessDefinitionUseCase processDefinitionUseCase(ProcessStore store, ProcessTransactionRunner transactions,
+            CurrentActorProvider actors, AuditEventRecorder audit) {
+        return new ProcessDefinitionUseCase(store, transactions, actors, audit);
     }
 }

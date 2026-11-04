@@ -1,10 +1,11 @@
 $kind: collection
 name: Process Definitions
 description: |-
-  Endpoints for querying deployed BPMN process definitions.
-
-  NOTE: The controller (ProcessDefinitionController) is implemented but not yet registered
-  as a Spring bean (@RestController annotation is pending). These requests will return 404
-  until the controller is activated.
-
-  - GET /api/v1/process-definitions - List process definitions (paginated, sortable)
+  P4.1 business catalog and configuration storage; business versionNumber, optimistic revision and engineVersion are separate.
+  POST creates a definition plus empty DRAFT v1 atomically and requires process.design. Key matches [a-z][a-z0-9_-]{0,99}; duplicate key returns 409.
+  Owner defaults to the authenticated actor; optional ownerUserId must identify an ACTIVE user and does not grant any permission.
+  GET catalog requires process.catalog.read/process.start or management/monitor.all. Design/publish/monitor.all see all definitions, with minimal metadata only.
+  Catalog/start readers see only ACTIVE definitions pointing at their own PUBLISHED version with engine mapping. Scope is applied before count/pagination.
+  GET definition/history/configuration requires process.design or process.publish; owner, start, catalog and monitor rights alone cannot read management metadata.
+  History defaults to versionNumber,desc. Catalog sorts key/name/updatedAt asc/desc. Pages start at 0, size 1..100.
+  Canvas, draft editing, validation, publish and lifecycle are implemented in later P4 steps. Creating a draft never deploys to Flowable.

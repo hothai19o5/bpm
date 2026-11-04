@@ -1,0 +1,29 @@
+$kind: http-request
+order: 2000
+method: POST
+url: '{{baseUrl}}/api/v1/process-definitions'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "key": "purchase-request",
+      "name": "Đề nghị mua sắm",
+      "description": "Quy trình mua sắm MVP"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('Creates empty business draft v1', function () {
+        pm.response.to.have.status(200);
+        const data = pm.response.json().data;
+        pm.expect(data.version.metadata.versionNumber).to.eql(1);
+        pm.expect(data.version.metadata.status).to.eql('DRAFT');
+        pm.expect(data.version.engineDefinitionId).to.eql(null);
+        pm.expect(data.version.stepConfig).to.eql({});
+        pm.collectionVariables.set('processDefinitionId', data.definition.id);
+        pm.collectionVariables.set('processVersionId', data.version.metadata.id);
+      });

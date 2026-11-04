@@ -283,6 +283,8 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 | **P4.7 — Publish nguyên tử và chống lặp** | Kiểm tra quyền/revision, validate artifact, deploy Flowable và đóng băng XML + metadata + form bindings + tham số trong transaction. Lưu checksum, engine deployment/definition/version mapping và audit. | Publish thành công tạo đúng một version/deployment cho cùng request; failure rollback cả mapping/trạng thái/engine. Người thiếu quyền bị chặn; artifact PUBLISHED không sửa được tại chỗ. |
 | **P4.8 — Quản lý quy trình và vòng đời version** | Dựng trang theo concept quản lý: tìm/lọc, tab nháp/công bố/ngừng khởi tạo, chi tiết, tạo nháp kế tiếp và nhân bản trong tập hỗ trợ. Quản lý version được phép start và retire có audit. | Có danh mục riêng theo quyền khởi tạo/quản lý; sửa published tạo draft mới. Retire chặn start mới, không suspend/xóa instance cũ; tên tab không khiến người dùng hiểu nhầm là đã xóa lịch sử. |
 
+**Cập nhật P4.1 ngày 04/11/2026:** Đã nối hai bảng process hiện có với API danh mục theo scope, tạo definition + draft v1 + audit nguyên tử, metadata, lịch sử phân trang và đọc cấu hình đúng version. Bảo vệ cấu hình bằng `process.design`/`process.publish`; danh mục start chỉ có ACTIVE/PUBLISHED và không lộ XML/metadata quản trị. **114 test đạt** (10 tích hợp P4.1 + 10 process hồi quy + 94 form), ba Postman lint đạt 0 error/warning. Xem [hợp đồng và kiểm chứng P4.1](P4.1-Process-Catalog.md). Chưa có canvas/save/publish/lifecycle P4.2–P4.8; chưa chạy full regression/dev smoke/UAT.
+
 **Điều kiện chuyển phase:** Publish được mẫu mua sắm bằng designer, giữ đầy đủ form bindings và artifact. Có bằng chứng chặn model sai, xử lý conflict và không publish trùng.
 
 ## 9. Phase 5 — Hồ sơ, inbox và xử lý công việc xuyên suốt

@@ -6,11 +6,14 @@ import com.x.bpm.shared.api.ApiPageResponse;
 import com.x.bpm.shared.api.ApiResponse;
 import com.x.bpm.shared.api.ApiResponseFactory;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Controller mỏng đã có implementation; CHƯA có route/bean thực tế.
- * TODO: Sau khi đủ dependency: @RestController + @RequestMapping("/api/v1/process-definitions").
- */
+/** Danh mục tối thiểu theo scope; không chứa XML/metadata quản trị. */
+@RestController
+@RequestMapping("/api/v1/process-definitions")
 public class ProcessDefinitionController {
 
     private final ListProcessDefinitionsUseCase listProcessDefinitions;
@@ -22,10 +25,10 @@ public class ProcessDefinitionController {
         this.responses = responses;
     }
 
-    // TODO: @GetMapping; mỗi tham số dùng @RequestParam(name = "...", required = false).
-    // Để Integer nullable nhằm phân biệt thiếu tham số với số 0.
-    public ApiResponse<ApiPageResponse<ProcessDefinitionResponse>> list(Integer page, Integer size,
-            String sort, HttpServletRequest request) {
+    @GetMapping
+    public ApiResponse<ApiPageResponse<ProcessDefinitionResponse>> list(
+            @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort, HttpServletRequest request) {
         var pageQuery = PageQuery.from(page, size, sort);
         var result = listProcessDefinitions.execute(pageQuery);
         var pageResponse = ApiPageResponse.from(result, ProcessDefinitionResponse::from);

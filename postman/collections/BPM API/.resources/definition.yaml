@@ -14,7 +14,7 @@ description: |-
   - Admin Users - managed accounts, status, password reset and role membership
   - Organization - departments, positions and requester-manager resolution
   - Forms - catalog/history, create/save/validate/publish/clone and context preview (form.design/form.publish); active published binding selection (process.design)
-  - Process Definitions - list deployed process definitions (planned, not yet active)
+  - Process Definitions - scoped business catalog, create empty draft v1, management details/configuration/history (P4.1)
 variables:
   baseUrl: http://localhost:8080
   accessToken: ""
@@ -27,6 +27,8 @@ variables:
   formDefinitionId: ""
   formVersionId: ""
   formOperationKey: ""
+  processDefinitionId: ""
+  processVersionId: ""
 auth:
   type: bearer
   credentials:

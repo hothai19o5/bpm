@@ -27,7 +27,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** Tests the inactive controller directly; no fake runtime DB or authenticated-user bean. */
+/** Tests the catalog controller mapping independently of HTTP/persistence. */
 class ProcessDefinitionControllerTest {
     private final Instant now = Instant.parse("2026-11-02T03:00:00Z");
     private final ApiResponseFactory responses = new ApiResponseFactory(Clock.fixed(now, ZoneOffset.UTC));

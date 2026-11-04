@@ -14,7 +14,8 @@ public class ProcessDefinitionReadPolicy {
                     "Danh tính không hợp lệ hoặc tài khoản đã ngừng hoạt động.");
         }
         if (actor.hasPermission(PermissionCatalog.PROCESS_MONITOR_ALL)
-                || actor.hasPermission(PermissionCatalog.PROCESS_DESIGN)) {
+                || actor.hasPermission(PermissionCatalog.PROCESS_DESIGN)
+                || actor.hasPermission(PermissionCatalog.PROCESS_PUBLISH)) {
             return ProcessCatalogScope.ALL;
         }
         if (actor.hasPermission(PermissionCatalog.PROCESS_CATALOG_READ)
