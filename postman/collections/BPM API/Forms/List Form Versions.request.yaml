@@ -1,0 +1,11 @@
+$kind: http-request
+order: 9000
+method: GET
+url: '{{baseUrl}}/api/v1/form-definitions/{{formDefinitionId}}/versions?page=0&size=20&sort=versionNumber,desc'
+queryParams:
+  - key: page
+    value: '0'
+  - key: size
+    value: '20'
+  - key: sort
+    value: versionNumber,desc

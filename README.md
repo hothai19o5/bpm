@@ -10,13 +10,15 @@ P2.3a–d đã có [permission catalog/shared policy/RBAC API](docs/P2.3-Authori
 
 P2.4a–d đã có [assignment resolver contract/implementation](docs/P2.4-Assignment-Resolver-Implementation-Guide.md) và [ma trận test source](docs/P2.4-Verification.md). Resolver unit và một luồng PostgreSQL đã chạy đạt; các trường hợp directory còn lại và restart vẫn cần kiểm tra.
 
-P3.1 đã có [hợp đồng schema/UI schema và API form](docs/P3.1-Form-Contract.md), fixture mua sắm và Postman. [8 kiểm thử P3.1 đạt trên Docker/PostgreSQL test riêng](docs/P3.1-Verification.md); collection/environment/workspace lint không error/warning. API hiện hỗ trợ tạo danh mục kèm draft đầu tiên và đọc version; các bước P3.2–P3.6 tiếp tục bổ sung validation dữ liệu, renderer/builder và publish.
+P3.1 đã có [hợp đồng schema/UI schema và API form](docs/P3.1-Form-Contract.md), fixture mua sắm và Postman. [8 kiểm thử P3.1 đạt trên Docker/PostgreSQL test riêng](docs/P3.1-Verification.md); các bước tiếp theo bổ sung validation, renderer/builder, vòng đời và quản lý biểu mẫu như bên dưới.
 
 P3.2 đã có [validator dữ liệu và policy quyền trường dùng chung](docs/P3.2-Form-Validation-Guide.md), lọc read view, merge patch và validation theo action. [74 kiểm thử P3.1/P3.2 đạt](docs/P3.2-Verification.md), gồm 66 test mới P3.2. Service nội bộ được đăng ký Spring bean để các bước renderer/record/task tái sử dụng.
 
 P3.4 đã bổ sung [API lưu draft theo revision cho form builder](docs/P3.4-Form-Builder.md), cập nhật Postman; 75 backend form tests và 68 frontend form tests đạt. Builder tại frontend dùng renderer P3.3 để preview; backend dev cần rebuild/restart để nạp endpoint mới.
 
 P3.5 đã có [validate/publish/clone và bất biến form version](docs/P3.5-Form-Version-Lifecycle.md), Idempotency-Key với biên nhận DB và test concurrency/rollback. 87 backend form tests, 74 frontend tests và Postman lint đạt. Dev cần rebuild/restart để nạp API và bảng form_version_operations mới; frontend đã nối thao tác lifecycle trong designer.
+
+P3.6 đã có [danh mục/tìm/lọc, lịch sử, lựa chọn published version và preview requester/kế toán](docs/P3.6-Form-Management.md). 94 backend form tests, 78 frontend tests và ba Postman lint đạt; Chrome smoke nối API thật trên PostgreSQL test cách ly đạt. Binding vào process version tiếp tục ở P4; dev cần rebuild backend để nạp API mới.
 
 ## 1. Chuẩn bị lần đầu
 

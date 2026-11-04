@@ -13,7 +13,7 @@ description: |-
   - Auth - login, token refresh, logout, password change, current user identity
   - Admin Users - managed accounts, status, password reset and role membership
   - Organization - departments, positions and requester-manager resolution
-  - Forms - create/save/validate/publish/clone versioned forms (form.design/form.publish)
+  - Forms - catalog/history, create/save/validate/publish/clone and context preview (form.design/form.publish); active published binding selection (process.design)
   - Process Definitions - list deployed process definitions (planned, not yet active)
 variables:
   baseUrl: http://localhost:8080

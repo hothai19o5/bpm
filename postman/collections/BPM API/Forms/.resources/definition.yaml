@@ -1,3 +1,9 @@
 $kind: collection
 name: Forms
-description: Form schema/version lifecycle with revision checks and idempotent publish/clone; permissions form.design/form.publish.
+description: |-
+  Form catalog, version history and lifecycle for form.design/form.publish (global management scope).
+  Binding options and direct binding-version lookup require process.design; only ACTIVE definitions and PUBLISHED versions are eligible.
+  List Forms supports literal name/key q, status ACTIVE/INACTIVE, versionStatus DRAFT/PUBLISHED/RETIRED, zero-based page, size 1..100, sort name/key asc/desc.
+  History sorts versionNumber desc by default. Binding options ignore management status filters.
+  Preview contexts REQUESTER/ACCOUNTING use server fixtures and never persist data or audit; POST checks action and field permissions.
+  Preview starts with empty data. Send all current editable changes relative to this baseline on each check; unknown fields are hidden.

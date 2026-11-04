@@ -1,0 +1,23 @@
+$kind: http-request
+order: 10000
+method: GET
+url: '{{baseUrl}}/api/v1/form-definitions/binding-options?q=&page=0&size=20'
+queryParams:
+  - key: q
+    value: ''
+  - key: page
+    value: '0'
+  - key: size
+    value: '20'
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('Binding options contain only active published forms', function () {
+        pm.response.to.have.status(200);
+        pm.response.json().data.items.forEach(option => {
+          pm.expect(option.definition.status).to.eql('ACTIVE');
+          pm.expect(option.version.status).to.eql('PUBLISHED');
+          pm.expect(option.version).not.to.have.property('schema');
+        });
+      });

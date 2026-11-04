@@ -1,0 +1,18 @@
+$kind: http-request
+order: 15000
+method: POST
+url: '{{baseUrl}}/api/v1/form-definitions/{{formDefinitionId}}/versions/{{formVersionId}}/preview'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "context": "ACCOUNTING",
+      "action": "APPROVE",
+      "patch": {
+        "values": { "budgetCode": "IT-2026", "budgetConfirmed": true },
+        "removeFields": []
+      }
+    }

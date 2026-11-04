@@ -1,0 +1,7 @@
+$kind: http-request
+order: 12000
+method: GET
+url: '{{baseUrl}}/api/v1/form-definitions/{{formDefinitionId}}/versions/{{formVersionId}}/preview?context=REQUESTER'
+queryParams:
+  - key: context
+    value: REQUESTER

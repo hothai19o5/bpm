@@ -1,0 +1,26 @@
+$kind: http-request
+order: 7000
+method: GET
+url: '{{baseUrl}}/api/v1/form-definitions?q=&status=ACTIVE&page=0&size=20&sort=name,asc'
+queryParams:
+  - key: q
+    value: ''
+  - key: status
+    value: ACTIVE
+  - key: page
+    value: '0'
+  - key: size
+    value: '20'
+  - key: sort
+    value: name,asc
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('Management catalog returns a page', function () {
+        pm.response.to.have.status(200);
+        const data = pm.response.json().data;
+        pm.expect(data.items).to.be.an('array');
+        pm.expect(data.totalElements).to.be.a('number');
+        data.items.forEach(form => pm.expect(form.status).to.eql('ACTIVE'));
+      });
