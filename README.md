@@ -282,3 +282,5 @@ persistence và full dev flow còn chờ. Xem
 [biên bản kiểm chứng](docs/P2.1-Verification.md).
 
 Tham chiếu: [Docker Compose health/dependency](https://docs.docker.com/compose/how-tos/startup-order/), [PostgreSQL official image — volume PostgreSQL 18](https://hub.docker.com/_/postgres), [Spring Boot Actuator](https://docs.spring.io/spring-boot/reference/actuator/endpoints.html), [Flowable schema configuration](https://www.flowable.com/open-source/docs/bpmn/ch05a-Spring-Boot).
+
+P4.4 đã có [XML/metadata/DI round-trip](docs/P4.4-Artifact-Round-Trip.md) tại frontend, extension moddle, projection thống nhất, undo/cleanup metadata, mở BPMN/JSON và reject dữ liệu mâu thuẫn. Chưa validator server hoặc deploy engine.

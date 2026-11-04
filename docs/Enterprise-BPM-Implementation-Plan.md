@@ -291,6 +291,8 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 **Cập nhật P4.3 ngày 04/11/2026:** Đã có property panel nghiệp vụ frontend: assignment/action/form/quyền trường/deadline, điều kiện XOR có kiểu và outcome, metadata theo element ID, kiểm tra tham chiếu và xuất JSON kèm XML. **5 model tests và 14 Chrome tests đạt**, build/lint đạt (warning cũ). Xem [P4.3](P4.3-Business-Properties.md). Round-trip/cleanup/undo metadata và compiler thuộc P4.4; chưa lưu server/deploy engine hoặc smoke backend thật. Không thay API/Postman.
 
+**Cập nhật P4.4 ngày 04/11/2026:** Đã có extension BPM moddle và XML/metadata/DI round-trip frontend; projection metadata lấy từ XML, chung undo/redo, xóa/replace/đổi ID không để config mồ côi. Mở BPMN/JSON, reject mirror mâu thuẫn, build artifact từ một model. **16 Chrome + 78 form + 5 business-config tests đạt**, build/lint đạt (warning cũ). Xem [P4.4](P4.4-Artifact-Round-Trip.md). Chưa server validator/save/publish hoặc deploy engine; không thay API/Postman.
+
 ## 9. Phase 5 — Hồ sơ, inbox và xử lý công việc xuyên suốt
 
 **Mục tiêu:** Có luồng người dùng thật từ chọn quy trình đến hoàn tất/từ chối/bổ sung. Chưa cần đủ dashboard và các khối cộng tác để chứng minh luồng này.
