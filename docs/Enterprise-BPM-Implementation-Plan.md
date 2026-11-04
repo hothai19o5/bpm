@@ -287,6 +287,8 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 **Điều kiện chuyển phase:** Publish được mẫu mua sắm bằng designer, giữ đầy đủ form bindings và artifact. Có bằng chứng chặn model sai, xử lý conflict và không publish trùng.
 
+**Cập nhật P4.2 ngày 04/11/2026:** Frontend đã tích hợp bpmn-js 18.31.1 với palette/canvas/bảng tên-ID, Start/User Task/XOR/End/Sequence Flow, zoom và undo/redo. Giới hạn palette/context pad/menu đổi loại và create/replace/copy/paste; xuất/mở BPMN giữ DI, import lỗi giữ graph cũ, PUBLISHED dùng viewer chỉ đọc. **13 test Chrome + 78 test form đạt**, build/lint đạt (còn warning có sẵn/chunk modeler). Xem [P4.2 và giới hạn kiểm chứng](P4.2-Workflow-Canvas.md). Lưu tệp local; save/revision server thuộc P4.6. Chưa smoke frontend/backend thật hoặc chạy engine/UAT; không thay API/Postman.
+
 ## 9. Phase 5 — Hồ sơ, inbox và xử lý công việc xuyên suốt
 
 **Mục tiêu:** Có luồng người dùng thật từ chọn quy trình đến hoàn tất/từ chối/bổ sung. Chưa cần đủ dashboard và các khối cộng tác để chứng minh luồng này.

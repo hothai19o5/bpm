@@ -22,6 +22,8 @@ P3.6 đã có [danh mục/tìm/lọc, lịch sử, lựa chọn published versio
 
 P4.1 đã có [danh mục quy trình theo scope, tạo draft v1, metadata/lịch sử và đọc cấu hình theo version](docs/P4.1-Process-Catalog.md), tái sử dụng hai bảng process hiện có. 114 backend tests (10 mới P4.1), ba Postman lint đạt; metadata quản trị chỉ dành cho `process.design`/`process.publish`, phiên bản nghiệp vụ độc lập với engine version. Canvas/save/publish/lifecycle tiếp tục ở P4.2–P4.8; cần rebuild/restart backend để dùng API mới trên dev.
 
+P4.2 đã có [canvas bpmn-js giới hạn MVP ở frontend](docs/P4.2-Workflow-Canvas.md), lưu/mở tệp BPMN giữ DI, zoom/undo/redo và giới hạn công cụ/menu/modeling. 13 test Chrome và 78 test frontend form đạt; build/lint đạt. Chưa lưu nháp quy trình lên server/publish; không thay API/schema/Postman ở bước này.
+
 ## 1. Chuẩn bị lần đầu
 
 Trong PowerShell tại thư mục repository:
