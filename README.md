@@ -12,6 +12,8 @@ P2.4a–d đã có [assignment resolver contract/implementation](docs/P2.4-Assig
 
 P3.1 đã có [hợp đồng schema/UI schema và API form](docs/P3.1-Form-Contract.md), fixture mua sắm và Postman. [8 kiểm thử P3.1 đạt trên Docker/PostgreSQL test riêng](docs/P3.1-Verification.md); collection/environment/workspace lint không error/warning. API hiện hỗ trợ tạo danh mục kèm draft đầu tiên và đọc version; các bước P3.2–P3.6 tiếp tục bổ sung validation dữ liệu, renderer/builder và publish.
 
+P3.2 đã có [validator dữ liệu và policy quyền trường dùng chung](docs/P3.2-Form-Validation-Guide.md), lọc read view, merge patch và validation theo action. [74 kiểm thử P3.1/P3.2 đạt](docs/P3.2-Verification.md), gồm 66 test mới P3.2. Service nội bộ được đăng ký Spring bean để các bước renderer/record/task tái sử dụng.
+
 ## 1. Chuẩn bị lần đầu
 
 Trong PowerShell tại thư mục repository:

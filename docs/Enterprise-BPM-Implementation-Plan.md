@@ -258,6 +258,8 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 **Tiến độ P3.1 ngày 04/11/2026:** Đã bổ sung hợp đồng `bpm-form-v1`, domain/application/persistence/API tạo danh mục kèm draft version 1 và đọc version; fixture mua sắm và Postman. Tái sử dụng hai bảng form hiện có. **8 kiểm thử P3.1 đạt trên Docker/PostgreSQL test cách ly; Postman collection/environment/workspace lint không error/warning.** Xem [hợp đồng](P3.1-Form-Contract.md) và [biên bản](P3.1-Verification.md). Chưa chạy full regression/dev smoke; server validation dữ liệu/action và quyền trường tiếp tục tại P3.2.
 
+**Tiến độ P3.2 ngày 04/11/2026:** Đã có validator 10 kiểu trường, policy HIDDEN/READ_ONLY/EDITABLE, service lọc read view và merge/validate patch theo action, required theo bước và lý do từ chối/bổ sung. **74 kiểm thử đạt trên Docker/PostgreSQL test cách ly (66 mới P3.2 + 8 hồi quy P3.1), không failure/error/skipped.** Xem [hướng dẫn](P3.2-Form-Validation-Guide.md) và [biên bản](P3.2-Verification.md). Đây là service nội bộ để nối renderer/record/task; resource authorization, runtime persistence và attachment ownership tiếp tục ở các bước tích hợp tương ứng.
+
 ## 8. Phase 4 — Workflow Designer, validate và quản lý phiên bản
 
 **Mục tiêu:** Người có quyền tự thiết kế và công bố một quy trình chạy được trong tập BPMN MVP.
