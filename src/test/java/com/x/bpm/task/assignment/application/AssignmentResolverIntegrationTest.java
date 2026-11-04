@@ -1,16 +1,24 @@
 package com.x.bpm.task.assignment.application;
 
 import com.x.bpm.identity.application.AuthAccountPort;
+import com.x.bpm.identity.application.AuthenticatedAccount;
 import com.x.bpm.identity.application.NewUserAccount;
 import com.x.bpm.identity.application.PasswordHashPort;
+import com.x.bpm.identity.adapter.security.AuthenticatedAccountPrincipal;
 import com.x.bpm.identity.domain.AccountStatus;
 import com.x.bpm.organization.application.NewDepartment;
 import com.x.bpm.organization.application.OrganizationManagementUseCase;
 import com.x.bpm.organization.domain.OrganizationStatus;
 import com.x.bpm.support.IsolatedPostgresTest;
 import com.x.bpm.task.assignment.domain.AssignmentStrategy;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -21,6 +29,11 @@ class AssignmentResolverIntegrationTest {
     @Autowired private PasswordHashPort hashes;
     @Autowired private OrganizationManagementUseCase organizations;
 
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
     void departmentAndRequesterManagerResolveFromPersistedCurrentDirectory() {
         var passwordHash = hashes.hash("temporary horse password");
@@ -28,6 +41,12 @@ class AssignmentResolverIntegrationTest {
                 "Assignment Requester", passwordHash, AccountStatus.ACTIVE, false));
         var manager = accounts.create(new NewUserAccount("assignment-manager",
                 "Assignment Manager", passwordHash, AccountStatus.ACTIVE, false));
+        var actor = new AuthenticatedAccount(manager.id(), manager.username(), manager.displayName(),
+                Set.of("organization.manage"), false, UUID.randomUUID(), manager.securityVersion());
+        var securityContext = SecurityContextHolder.createEmptyContext();
+        securityContext.setAuthentication(new UsernamePasswordAuthenticationToken(
+                new AuthenticatedAccountPrincipal(actor), null, List.of()));
+        SecurityContextHolder.setContext(securityContext);
         var department = organizations.createDepartment(new NewDepartment("ASSIGNMENT",
                 "Assignment Department", null, null, OrganizationStatus.ACTIVE));
         organizations.assignMembership(requester.id(), department.id(), null);

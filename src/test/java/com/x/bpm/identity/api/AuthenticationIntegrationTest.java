@@ -364,12 +364,12 @@ class AuthenticationIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsBytes(
                                 new AuthController.ChangePasswordRequest(currentPassword,
-                                        "unsafe-marker"))))
+                                        "unsafe"))))
                 .andExpect(status().is(422))
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.details[0].field").value("newPassword"))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("unsafe-marker"))));
+                        org.hamcrest.Matchers.containsString("unsafe"))));
 
         mvc.perform(get("/api/v1/auth/me")
                         .header("Authorization", "Bearer " + tokens.accessToken()))

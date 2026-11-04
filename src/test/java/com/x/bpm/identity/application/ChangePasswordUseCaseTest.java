@@ -61,6 +61,8 @@ class ChangePasswordUseCaseTest {
     @Test
     void rejectsWrongCurrentPasswordWithoutWritingSecretsOrAccountState() {
         var fixture = fixture();
+        when(fixture.grants.findGrantByIdForUpdate(GRANT_ID))
+                .thenReturn(Optional.of(grant()));
         when(fixture.passwordHashes.matches("wrong-current", "stored-hash"))
                 .thenReturn(false);
 

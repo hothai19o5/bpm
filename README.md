@@ -2,13 +2,13 @@
 
 Cấu hình dùng Java 25, Spring Boot 4.1.2, Flowable 8.0.0 theo `pom.xml` và PostgreSQL 18.6. Backend, build và test chạy trong container; máy host cần Docker Desktop ở chế độ Linux containers và Docker Compose v2 có hỗ trợ `up --wait`.
 
-**Trạng thái ngày 03/11/2026:** Người dùng xác nhận P1.4/P1.5, P1.6, business model/schema và P2.1a–c đã hoàn thành. P2.1d–e đã có implementation/test source cho refresh/logout, đổi/reset mật khẩu, khóa/mở khóa và thu hồi phiên. P2.1f đã bổ sung integration-test source và [biên bản kiểm chứng](docs/P2.1-Verification.md). **P2.1d–f chưa được chạy build/test/dev và chưa nghiệm thu; người dùng sẽ kiểm tra sau.** Chưa có kết quả GitHub Actions.
+**Trạng thái cập nhật ngày 04/11/2026:** Người dùng xác nhận P1.4/P1.5, P1.6, business model/schema và P2.1a–c đã hoàn thành. P2.1d–f, P2.2, P2.3 và P2.4 đã chạy full automated suite trong Docker với PostgreSQL test riêng ngày 03/11: **159 test, 0 failure, 0 error, 1 skipped; exit code 0**. Ba test fixture được chỉnh trước lượt chạy đạt. P2.1 restart persistence và các luồng dev/Postman nghiệp vụ chưa chạy đầy đủ; các mốc chưa nghiệm thu. Xem [biên bản P2.1](docs/P2.1-Verification.md), [P2.2](docs/P2.2-Verification.md), [P2.3](docs/P2.3-Verification.md) và [P2.4](docs/P2.4-Verification.md). Chưa có kết quả GitHub Actions.
 
-P2.2a–d đã có [contract và implementation quản trị người dùng/tổ chức](docs/P2.2-Organization-Implementation-Guide.md), Postman và [test source/biên bản](docs/P2.2-Verification.md). **P2.2 chưa chạy build/test/dev và chưa nghiệm thu.**
+P2.2a–d đã có [contract và implementation quản trị người dùng/tổ chức](docs/P2.2-Organization-Implementation-Guide.md), Postman và [test source/biên bản](docs/P2.2-Verification.md). Automated tests chạy đạt; CRUD smoke trên dev/Postman và một số trường hợp trong ma trận vẫn cần kiểm tra.
 
-P2.3a–d đã có [permission catalog/shared policy/RBAC API](docs/P2.3-Authorization-Implementation-Guide.md), Postman và [ma trận test source](docs/P2.3-Verification.md). **P2.3 chưa chạy build/test/dev và chưa nghiệm thu.**
+P2.3a–d đã có [permission catalog/shared policy/RBAC API](docs/P2.3-Authorization-Implementation-Guide.md), Postman và [ma trận test source](docs/P2.3-Verification.md). Automated policy/RBAC tests chạy đạt; actor/resource-scope matrix và Postman smoke còn lại chưa nghiệm thu.
 
-P2.4a–d đã có [assignment resolver contract/implementation](docs/P2.4-Assignment-Resolver-Implementation-Guide.md) và [ma trận test source](docs/P2.4-Verification.md). **P2.4 chưa chạy build/test/dev và chưa nghiệm thu.**
+P2.4a–d đã có [assignment resolver contract/implementation](docs/P2.4-Assignment-Resolver-Implementation-Guide.md) và [ma trận test source](docs/P2.4-Verification.md). Resolver unit và một luồng PostgreSQL đã chạy đạt; các trường hợp directory còn lại và restart vẫn cần kiểm tra.
 
 P3.1 đã có [hợp đồng schema/UI schema và API form](docs/P3.1-Form-Contract.md), fixture mua sắm và Postman. [8 kiểm thử P3.1 đạt trên Docker/PostgreSQL test riêng](docs/P3.1-Verification.md); collection/environment/workspace lint không error/warning. API hiện hỗ trợ tạo danh mục kèm draft đầu tiên và đọc version; các bước P3.2–P3.6 tiếp tục bổ sung validation dữ liệu, renderer/builder và publish.
 
@@ -53,7 +53,7 @@ Với cổng mặc định, kiểm tra:
 Invoke-RestMethod http://localhost:8080/actuator/health
 ```
 
-Kết quả mong đợi là `status: UP`. Nếu đổi `APP_PORT`, dùng cổng đã cấu hình. Health endpoint kiểm tra trạng thái ứng dụng và DB; chưa phải bằng chứng nghiệp vụ/transaction/concurrency đã đúng. Security dùng JWT Bearer stateless; API bảo vệ trả JSON 401 khi thiếu token. Source P2.1 đã có login, `/me`, refresh/logout và change-password; **toàn bộ P2.1d–f vẫn chưa chạy kiểm chứng**. Toàn bộ code, cấu hình và test bootstrap tài khoản dev đã bị xóa khỏi repository; test authentication tự tạo fixture trong DB test, còn tài khoản runtime sẽ được tạo qua API quản trị P2.2.
+Kết quả mong đợi là `status: UP`. Nếu đổi `APP_PORT`, dùng cổng đã cấu hình. Health endpoint kiểm tra trạng thái ứng dụng và DB; chưa phải bằng chứng nghiệp vụ/transaction/concurrency đã đúng. Security dùng JWT Bearer stateless; API bảo vệ trả JSON 401 khi thiếu token. Ngày 03/11/2026, dev health trả `UP` và `GET /api/v1/auth/me` không token trả `401`; login/refresh/change-password/logout trên dev chưa smoke test. Toàn bộ code, cấu hình và test bootstrap tài khoản dev đã bị xóa khỏi repository; test authentication tự tạo fixture trong DB test, còn tài khoản runtime sẽ được tạo qua API quản trị P2.2.
 
 Xem log:
 
@@ -213,7 +213,8 @@ mặc định theo yêu cầu người dùng; thay `JWT_SECRET_KEY` trong `.env`
 `JWT_ISSUER=https://bpm.local`, `JWT_AUDIENCE=bpm-api`, `JWT_ACCESS_TOKEN_TTL=30m` là
 baseline dev; `REFRESH_TOKEN_TTL=7d` là hạn tuyệt đối của login grant. Ngoài
 dev/test phải cấp secret riêng. Source P2.1 đã nối login, `/me`, refresh/logout
-và change-password; kết quả build/test/dev của P2.1d–f đang chờ người dùng.
+và change-password; automated suite đã đạt ngày 03/11/2026. Full dev flow và restart
+revocation smoke test vẫn đang chờ.
 
 ## 8. P1.4/P1.5 — schema, adapter và integration test
 
@@ -269,8 +270,9 @@ liệu nên không có build/test mới.
 từ DB, principal ứng dụng cấp `/me`, và gate mật khẩu tạm. Code,
 cấu hình và test bootstrap tài khoản dev đã được xóa hoàn toàn. P2.1d–e đã có
 implementation/test source cho refresh/logout, change-password và account revoke.
-P2.1f đã hoàn thiện integration-test source cùng hướng dẫn nghiệm thu. **P2.1d–f
-chưa chạy build/test/dev và chưa nghiệm thu; người dùng sẽ kiểm tra sau.** Xem
+P2.1f đã hoàn thiện integration-test source cùng hướng dẫn nghiệm thu. Full
+automated suite đã đạt ngày 03/11/2026; **P2.1d–f chưa nghiệm thu** vì restart
+persistence và full dev flow còn chờ. Xem
 [hướng dẫn P2.1](docs/P2.1-Manual-Implementation-Guide.md) và
 [biên bản kiểm chứng](docs/P2.1-Verification.md).
 
