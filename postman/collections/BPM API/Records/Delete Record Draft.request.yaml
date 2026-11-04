@@ -1,0 +1,7 @@
+$kind: http-request
+order: 6000
+method: DELETE
+url: '{{baseUrl}}/api/v1/records/{{recordId}}/draft?expectedRevision={{recordRevision}}'
+queryParams:
+  - key: expectedRevision
+    value: '{{recordRevision}}'

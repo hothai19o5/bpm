@@ -242,7 +242,9 @@ class ProcessCatalogIntegrationTest {
         var step=Map.<String,Object>of("assignment",Map.of("strategy","REQUESTER_MANAGER"),"actions",java.util.List.of("APPROVE"));
         String template;try(var input=getClass().getResourceAsStream("/processes/p45-authoring.xml")){template=new String(input.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);}
         String xml=template.formatted(json.writeValueAsString(Map.of("step",step,"formVersionId",form))).replace("\"purchase\"","\""+process.get("definition").get("key").asString()+"\"");
-        var model=new ProcessModelInput(xml,Map.of("review",step,"f2",Map.of("outcome","APPROVE")),Map.of("review",Map.of("formVersionId",form.toString())));
+        var entry=Map.<String,Object>of("fieldAccess",Map.of("amount","EDITABLE"));
+        xml=xml.replace("<b:startEvent id=\"start\"/>","<b:startEvent id=\"start\"><b:extensionElements><bpm:configuration>"+json.writeValueAsString(Map.of("step",entry,"formVersionId",form))+"</bpm:configuration></b:extensionElements></b:startEvent>");
+        var model=new ProcessModelInput(xml,Map.of("start",entry,"review",step,"f2",Map.of("outcome","APPROVE")),Map.of("start",Map.of("formVersionId",form.toString()),"review",Map.of("formVersionId",form.toString())));
         return json.readTree(mvc.perform(put(ROOT+"/"+id(process)+"/draft").header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(new SaveProcessDraft(UUID.fromString(vid(process)),0L,model)))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("data");
     }
 

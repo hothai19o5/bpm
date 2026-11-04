@@ -1,0 +1,9 @@
+$kind: http-request
+order: 1000
+method: GET
+url: '{{baseUrl}}/api/v1/records/new?processDefinitionId={{processDefinitionId}}&processVersionId={{processVersionId}}'
+queryParams:
+  - key: processDefinitionId
+    value: '{{processDefinitionId}}'
+  - key: processVersionId
+    value: '{{processVersionId}}'

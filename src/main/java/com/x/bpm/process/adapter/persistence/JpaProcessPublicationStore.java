@@ -40,10 +40,11 @@ public class JpaProcessPublicationStore implements ProcessPublicationStore {
                 || receipt.getSourceRevision()!=command.expectedRevision())throw reused();
         return store.version(id,command.versionId());
     }
-    public ProcessArtifact freeze(UUID id,PublishProcess command,UUID actorId,UUID key,String xml,String checksum,EngineProcessDefinition engine) {
+    public ProcessArtifact freeze(UUID id,PublishProcess command,UUID actorId,UUID key,String xml,String checksum,EngineProcessDefinition engine,boolean recordStartReady) {
         var version=versions.findByIdAndProcessDefinitionId(command.versionId(),id).orElseThrow();
         var actor=entities.getReference(UserEntity.class,actorId);
         version.setDeploymentXml(xml);version.setArtifactChecksum(checksum);
+        version.setRecordStartReady(recordStartReady);
         version.setEngineDeploymentId(engine.deploymentId());version.setEngineDefinitionId(engine.definitionId());version.setEngineVersion(engine.version());
         version.setStatus(ProcessVersionEntity.Status.PUBLISHED);version.setPublishedBy(actor);
         version.setPublishedAt(Instant.now(clock).truncatedTo(ChronoUnit.MICROS));

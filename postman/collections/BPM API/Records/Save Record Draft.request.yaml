@@ -1,0 +1,22 @@
+$kind: http-request
+order: 5000
+method: PUT
+url: '{{baseUrl}}/api/v1/records/{{recordId}}/draft'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "expectedRevision": {{recordRevision}},
+      "title": "Hồ sơ nháp đã sửa",
+      "patch": {"values": {}, "removeFields": []}
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      if (pm.response.code === 200) {
+        pm.collectionVariables.set('recordRevision', String(pm.response.json().data.revision));
+      }

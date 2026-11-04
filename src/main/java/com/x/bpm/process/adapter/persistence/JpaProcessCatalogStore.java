@@ -20,7 +20,7 @@ public class JpaProcessCatalogStore implements ProcessCatalogStore {
     }
     public PageResult<ProcessStartOption> startable(ProcessCatalogFilter f) {
         String from=" from ProcessDefinitionEntity d join d.activeProcessVersion v where "+SEARCH
-                +" and d.status='ACTIVE' and v.status='PUBLISHED' and v.processDefinition=d and v.engineDefinitionId is not null";
+                +" and d.status='ACTIVE' and v.status='PUBLISHED' and v.processDefinition=d and v.engineDefinitionId is not null and v.recordStartReady=true";
         // Caller cannot widen startability using the management status filter.
         var count=entities.createQuery("select count(d)"+from,Long.class).setParameter("q",f.q()).getSingleResult();
         var rows=entities.createQuery("select d"+from+order(f),ProcessDefinitionEntity.class).setParameter("q",f.q()).setFirstResult((int)f.page().offset()).setMaxResults(f.page().size()).getResultList();

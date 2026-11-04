@@ -33,6 +33,8 @@ variables:
   processRevision: "0"
   processCopyKey: "purchase-copy"
   processCopyName: "Bản sao mua sắm"
+  recordId: ""
+  recordRevision: "0"
 auth:
   type: bearer
   credentials:

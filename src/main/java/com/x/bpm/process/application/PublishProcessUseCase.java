@@ -53,12 +53,16 @@ public final class PublishProcessUseCase {
                     new ProcessModelInput(version.bpmnXml(),version.stepConfig(),version.formBindings()));
             if(version.formVersionId()==null) throw new ApplicationException(ErrorCode.VALIDATION_FAILED,
                     "Cần biểu mẫu chung cho các bước xử lý.",List.of(new ValidationIssue("formBindings","Cần ít nhất một bước xử lý gắn biểu mẫu.",null)));
+            var entry=validator.submissionConfig(new ProcessModelInput(version.bpmnXml(),version.stepConfig(),version.formBindings())).orElseThrow();
+            if(!version.formVersionId().equals(entry.formVersionId())||!entry.editable())
+                throw new ApplicationException(ErrorCode.VALIDATION_FAILED,"Thiếu cấu hình khởi tạo hồ sơ.",
+                        List.of(new ValidationIssue("fieldAccess","Gắn form chung và cho người tạo ít nhất một trường EDITABLE tại Start Event.",entry.elementId())));
             var deployment=engine.deploy(artifact.definition().key()+" v"+version.metadata().versionNumber(),
                     artifact.definition().key()+".bpmn20.xml",xml);
             if(deployment.definitions().size()!=1 || !deployment.definitions().getFirst().key().equals(artifact.definition().key())
                     || !deployment.definitions().getFirst().deploymentId().equals(deployment.deploymentId()))
                 throw new ApplicationException(ErrorCode.INTERNAL_ERROR,"Engine trả mapping không hợp lệ.");
-            var saved=publications.freeze(id,command,actorId,requestKey,xml,checksum(xml),deployment.definitions().getFirst());
+            var saved=publications.freeze(id,command,actorId,requestKey,xml,checksum(xml),deployment.definitions().getFirst(),true);
             audit.record("PROCESS_PUBLISHED","PROCESS_DEFINITION",id.toString(),
                     Map.of("versionId",command.versionId().toString(),"checksum",saved.version().artifactChecksum(),
                             "engineDefinitionId",saved.version().engineDefinitionId()));

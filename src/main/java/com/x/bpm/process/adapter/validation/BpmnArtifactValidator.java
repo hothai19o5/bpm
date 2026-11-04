@@ -94,7 +94,7 @@ public class BpmnArtifactValidator implements ProcessValidationPort {
                 case "definitions" -> e==root;
                 case "process","BPMNDiagram" -> parent.equals("definitions");
                 case "startEvent","userTask","exclusiveGateway","endEvent","sequenceFlow" -> parent.equals("process");
-                case "extensionElements" -> Set.of("userTask","exclusiveGateway","sequenceFlow").contains(parent);
+                case "extensionElements" -> Set.of("startEvent","userTask","exclusiveGateway","sequenceFlow").contains(parent);
                 case "configuration" -> parent.equals("extensionElements");
                 case "incoming","outgoing" -> NODES.contains(parent);
                 case "documentation" -> NODES.contains(parent)||Set.of("sequenceFlow","process").contains(parent);
@@ -127,12 +127,12 @@ public class BpmnArtifactValidator implements ProcessValidationPort {
         var configuredOwners=new HashSet<String>();var steps=new LinkedHashMap<String,Object>();var bindings=new LinkedHashMap<String,Object>();
         for(int i=0;i<all.getLength();i++) {
             var e=(Element)all.item(i);if(!BPM.equals(e.getNamespaceURI()))continue;
-            if(!(e.getParentNode() instanceof Element ext)||!MODEL.equals(ext.getNamespaceURI())||!ext.getLocalName().equals("extensionElements")||!(ext.getParentNode() instanceof Element owner)||!Set.of("userTask","exclusiveGateway","sequenceFlow").contains(owner.getLocalName())||children(ext).size()!=1||!children(e).isEmpty())fail("extension",null,"Extension sai vị trí hoặc bị trùng.");
+            if(!(e.getParentNode() instanceof Element ext)||!MODEL.equals(ext.getNamespaceURI())||!ext.getLocalName().equals("extensionElements")||!(ext.getParentNode() instanceof Element owner)||!Set.of("startEvent","userTask","exclusiveGateway","sequenceFlow").contains(owner.getLocalName())||children(ext).size()!=1||!children(e).isEmpty())fail("extension",null,"Extension sai vị trí hoặc bị trùng.");
             var owner=(Element)e.getParentNode().getParentNode();String ownerId=id(owner);
             if(!configuredOwners.add(ownerId))fail("extension",ownerId,"Cấu hình bị trùng.");
             Map<String,Object> payload;try{payload=payloadJson.readValue(e.getTextContent(),Map.class);}catch(Exception ex){fail("extension",ownerId,"JSON metadata không hợp lệ.");return null;}
             keys(payload,Set.of("step","formVersionId"),"extension",ownerId);var step=object(payload.get("step"),"step",ownerId);
-            Set<String> stepKeys=owner.getLocalName().equals("userTask")?Set.of("description","assignment","actions","fieldAccess","deadline"):owner.getLocalName().equals("sequenceFlow")?Set.of("description","condition","outcome"):Set.of("description");
+            Set<String> stepKeys=owner.getLocalName().equals("userTask")?Set.of("description","assignment","actions","fieldAccess","deadline"):owner.getLocalName().equals("startEvent")?Set.of("description","fieldAccess"):owner.getLocalName().equals("sequenceFlow")?Set.of("description","condition","outcome"):Set.of("description");
             keys(step,stepKeys,"step",ownerId);if(step.containsKey("description")&&(!(step.get("description") instanceof String text)||text.length()>4000))fail("description",ownerId,"Mô tả không hợp lệ.");for(var entry:Map.of("assignment",Set.of("strategy","specificUserId","departmentId","roleId"),"deadline",Set.of("value","unit"),"condition",Set.of("field","operator","value")).entrySet())if(step.containsKey(entry.getKey()))keys(object(step.get(entry.getKey()),entry.getKey(),ownerId),entry.getValue(),entry.getKey(),ownerId);
             for(String nested:List.of("assignment","deadline","condition"))if(step.containsKey(nested)){
                 var value=object(step.get(nested),nested,ownerId);
@@ -144,7 +144,7 @@ public class BpmnArtifactValidator implements ProcessValidationPort {
             if(step.containsKey("actions")&&(!(step.get("actions") instanceof List<?> list)||list.stream().anyMatch(a->!(a instanceof String)||!ACTIONS.contains(a))))fail("actions",ownerId,"Action không hợp lệ.");
             if(step.containsKey("fieldAccess")){var access=object(step.get("fieldAccess"),"fieldAccess",ownerId);for(var accessValue:access.values())if(!Set.of("HIDDEN","READ_ONLY","EDITABLE").contains(Objects.toString(accessValue,"")))fail("fieldAccess",ownerId,"Quyền trường không hợp lệ.");}
             if(!step.isEmpty())steps.put(ownerId,new LinkedHashMap<>(step));
-            if(payload.containsKey("formVersionId")){if(!owner.getLocalName().equals("userTask"))fail("formVersionId",ownerId,"Chỉ UserTask được gắn form.");bindings.put(ownerId,Map.of("formVersionId",uuid(payload.get("formVersionId"),"formVersionId",ownerId).toString()));}
+            if(payload.containsKey("formVersionId")){if(!Set.of("startEvent","userTask").contains(owner.getLocalName()))fail("formVersionId",ownerId,"Chỉ Start/UserTask được gắn form.");bindings.put(ownerId,Map.of("formVersionId",uuid(payload.get("formVersionId"),"formVersionId",ownerId).toString()));}
         }
         for(var node:nodes.values())if(node.xml.hasAttribute("default")) {
             String flowId=node.xml.getAttribute("default");if(!node.type.equals("exclusiveGateway")||!flows.containsKey(flowId)||!flows.get(flowId).source.equals(node.id))fail("default",node.id,"Default phải là flow đi ra từ XOR.");
@@ -239,6 +239,16 @@ public class BpmnArtifactValidator implements ProcessValidationPort {
             for(var action:actions)if(outgoing(node.id,flows).stream().filter(f->action.equals(object(steps.getOrDefault(f.id,Map.of()),"step",f.id).get("outcome"))).count()!=1)fail("actions",node.id,"Action cần đúng một đường ra: "+action);
             for(var flow:outgoing(node.id,flows))if(!actions.contains(object(steps.getOrDefault(flow.id,Map.of()),"step",flow.id).get("outcome")))fail("outcome",flow.id,"Luồng từ task cần outcome thuộc action được cấp.");
         }
+        for(var node:nodes.values())if(node.type.equals("startEvent")&&(steps.containsKey(node.id)||bindings.containsKey(node.id))) {
+            var step=object(steps.getOrDefault(node.id,Map.of()),"step",node.id);
+            var binding=object(bindings.get(node.id),"formVersionId",node.id);
+            String formId=string(binding.get("formVersionId"),"formVersionId",node.id);
+            var schema=refs.publishedForm(uuid(formId,"formVersionId",node.id)).orElseThrow(()->new ApplicationException(ErrorCode.VALIDATION_FAILED,"Form khởi tạo không được phép chọn.",List.of(new ValidationIssue("formVersionId","Cần form ACTIVE/PUBLISHED.",node.id))));
+            schemas.put(formId,schema);if(schemas.size()>1)fail("formVersionId",node.id,"MVP sử dụng một form version chung.");
+            var fields=object(schema.get("properties"),"schema",node.id);
+            for(var field:object(step.getOrDefault("fieldAccess",Map.of()),"fieldAccess",node.id).entrySet())
+                if(!fields.containsKey(field.getKey()))fail("fieldAccess."+field.getKey(),node.id,"Field khởi tạo không tồn tại.");
+        }
         for(var flow:flows.values()){
             var step=object(steps.getOrDefault(flow.id,Map.of()),"step",flow.id);var source=nodes.get(flow.source);
             if(step.containsKey("outcome")&&!source.type.equals("userTask"))fail("outcome",flow.id,"Outcome chỉ dùng trên flow từ UserTask.");
@@ -261,5 +271,16 @@ public class BpmnArtifactValidator implements ProcessValidationPort {
         for(var node:nodes.values())if(node.type.equals("exclusiveGateway")){
             var outgoing=outgoing(node.id,flows);if(outgoing.size()>1){if(!node.xml.hasAttribute("default"))fail("default",node.id,"XOR phân nhánh cần default.");for(var f:outgoing)if(!f.id.equals(node.xml.getAttribute("default"))&&!object(steps.getOrDefault(f.id,Map.of()),"step",f.id).containsKey("condition"))fail("condition",f.id,"Nhánh XOR cần điều kiện.");}
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public Optional<ProcessSubmissionConfig> submissionConfig(ProcessModelInput input) {
+        var document=parse(input.bpmnXml());var starts=document.getElementsByTagNameNS(MODEL,"startEvent");
+        if(starts.getLength()!=1)return Optional.empty();String startId=id((Element)starts.item(0));
+        var binding=object(input.formBindings().getOrDefault(startId,Map.of()),"formVersionId",startId);
+        if(!binding.containsKey("formVersionId"))return Optional.of(new ProcessSubmissionConfig(startId,null,Map.of()));
+        var step=object(input.stepConfig().getOrDefault(startId,Map.of()),"step",startId);
+        var fields=object(step.getOrDefault("fieldAccess",Map.of()),"fieldAccess",startId);
+        return Optional.of(new ProcessSubmissionConfig(startId,uuid(binding.get("formVersionId"),"formVersionId",startId),(Map<String,String>)(Map<?,?>)fields));
     }
 }

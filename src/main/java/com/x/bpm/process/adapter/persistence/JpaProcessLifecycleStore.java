@@ -44,7 +44,7 @@ public class JpaProcessLifecycleStore implements ProcessLifecycleStore {
     }
     public ProcessArtifact activate(UUID id,UUID versionId) {
         var version=version(id,versionId);
-        if(version.getProcessDefinition().getStatus()!=ProcessDefinitionEntity.Status.ACTIVE||version.getEngineDefinitionId()==null)
+        if(version.getProcessDefinition().getStatus()!=ProcessDefinitionEntity.Status.ACTIVE||version.getEngineDefinitionId()==null||!version.isRecordStartReady())
             throw new ApplicationException(ErrorCode.VERSION_NOT_STARTABLE,"Phiên bản không thể dùng cho hồ sơ mới.");
         version.getProcessDefinition().setActiveProcessVersion(version);entities.flush();return artifact(version);
     }

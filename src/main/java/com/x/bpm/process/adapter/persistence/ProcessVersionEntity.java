@@ -14,6 +14,11 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Transient;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
+import jakarta.persistence.PostUpdate;
+import jakarta.persistence.PreUpdate;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -37,6 +42,32 @@ import org.hibernate.type.SqlTypes;
                 @Index(name = "ix_process_versions_3", columnList = "published_by")})
 @Check(constraints = "version_number > 0 and (engine_version is null or engine_version > 0) and (status = 'DRAFT' or (bpmn_xml is not null and form_version_id is not null and engine_deployment_id is not null and engine_definition_id is not null and engine_version is not null and artifact_checksum is not null and published_at is not null and published_by is not null))")
 public class ProcessVersionEntity extends MutableEntity {
+    @Transient @Getter(lombok.AccessLevel.NONE) @Setter(lombok.AccessLevel.NONE)
+    private PublishedSnapshot publishedSnapshot;
+    @Transient @Getter(lombok.AccessLevel.NONE) @Setter(lombok.AccessLevel.NONE)
+    private Status snapshotStatus;
+
+    @PostLoad @PostPersist @PostUpdate
+    void snapshotPublished() {
+        snapshotStatus=status;
+        publishedSnapshot=status==Status.DRAFT?null:publication();
+    }
+    @PreUpdate
+    void requirePublishedImmutable() {
+        if(publishedSnapshot!=null&&(status==Status.DRAFT||(snapshotStatus==Status.RETIRED&&status!=Status.RETIRED)
+                ||!publishedSnapshot.equals(publication())))
+            throw new IllegalStateException("Published process artifact and engine mapping are immutable");
+    }
+    private PublishedSnapshot publication() {
+        return new PublishedSnapshot(processDefinition.getId(),versionNumber,bpmnXml,deploymentXml,
+                com.x.bpm.form.domain.JsonDocument.snapshot(stepConfig),com.x.bpm.form.domain.JsonDocument.snapshot(formBindings),
+                formVersion==null?null:formVersion.getId(),engineDeploymentId,engineDefinitionId,engineVersion,artifactChecksum,
+                createdBy.getId(),publishedBy==null?null:publishedBy.getId(),publishedAt,recordStartReady);
+    }
+    private record PublishedSnapshot(java.util.UUID definitionId,int versionNumber,String bpmnXml,String deploymentXml,
+            Map<String,Object> stepConfig,Map<String,Object> formBindings,java.util.UUID formVersionId,String engineDeploymentId,
+            String engineDefinitionId,Integer engineVersion,String checksum,java.util.UUID createdBy,java.util.UUID publishedBy,
+            Instant publishedAt,boolean recordStartReady) { }
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "process_definition_id", nullable = false, foreignKey = @ForeignKey(name = "fk_process_versions_process_definition_id"))
     private ProcessDefinitionEntity processDefinition;
@@ -56,6 +87,9 @@ public class ProcessVersionEntity extends MutableEntity {
     /** Exact validated bytes deployed to Flowable; authoring XML remains round-trip safe. */
     @Column(name = "deployment_xml", columnDefinition = "text")
     private String deploymentXml;
+
+    @Column(name = "record_start_ready", nullable = false, columnDefinition = "boolean default false")
+    private boolean recordStartReady;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "step_config", nullable = false, columnDefinition = "jsonb")

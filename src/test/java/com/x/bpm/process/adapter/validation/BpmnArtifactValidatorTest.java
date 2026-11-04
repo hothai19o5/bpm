@@ -39,6 +39,22 @@ class BpmnArtifactValidatorTest {
         assertInvalid(new ProcessModelInput(compiled,input.stepConfig(),input.formBindings()));
     }
     @Test void acceptsValidAuthoringArtifactWithoutChangingIt() throws Exception {var input=model(validStep());assertThat(validator.validate("purchase",input)).isEqualTo(input);}
+    @Test void requesterPermissionsAreExplicitStartMetadataAndUnknownFieldsOrTaskKeysAreRejected() throws Exception {
+        var input=model(validStep());
+        for(var entry:List.of(Map.<String,Object>of("fieldAccess",Map.of("amount","EDITABLE")),Map.<String,Object>of("fieldAccess",Map.of("hidden_unknown","EDITABLE")),Map.<String,Object>of("assignment",Map.of("strategy","REQUESTER_MANAGER")))) {
+            String extension=json.writeValueAsString(Map.of("step",entry,"formVersionId",FORM));
+            String xml=input.bpmnXml().replace("<b:startEvent id=\"start\"/>","<b:startEvent id=\"start\"><b:extensionElements><bpm:configuration>"+extension+"</bpm:configuration></b:extensionElements></b:startEvent>");
+            var steps=new HashMap<>(input.stepConfig());steps.put("start",entry);
+            var bindings=new HashMap<>(input.formBindings());bindings.put("start",Map.of("formVersionId",FORM));
+            var configured=new ProcessModelInput(xml,steps,bindings);
+            if(entry.containsKey("fieldAccess")&&((Map<?,?>)entry.get("fieldAccess")).containsKey("amount")) {
+                assertThat(validator.validate("purchase",configured)).isEqualTo(configured);
+                var policy=validator.submissionConfig(configured).orElseThrow();
+                assertThat(policy.elementId()).isEqualTo("start");assertThat(policy.fieldAccess()).containsEntry("amount","EDITABLE");assertThat(policy.editable()).isTrue();
+            } else assertInvalid(configured);
+        }
+        assertThat(validator.submissionConfig(input).orElseThrow().editable()).isFalse();
+    }
     @ParameterizedTest @MethodSource("attacks") void rejectsXmlBypassingTheDesigner(String attack) throws Exception {
         var input=model(validStep());String xml=switch(attack){
             case "task-name" -> input.bpmnXml().replace("<b:userTask id=\"review\">","<b:userTask id=\"review\" name=\"${evil.call()}\">");

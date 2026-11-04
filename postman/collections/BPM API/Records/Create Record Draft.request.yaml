@@ -1,0 +1,25 @@
+$kind: http-request
+order: 2000
+method: POST
+url: '{{baseUrl}}/api/v1/records'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "processDefinitionId": "{{processDefinitionId}}",
+      "processVersionId": "{{processVersionId}}",
+      "title": "Hồ sơ nháp",
+      "patch": {"values": {}, "removeFields": []}
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      if (pm.response.code === 200) {
+        const record = pm.response.json().data;
+        pm.collectionVariables.set('recordId', record.id);
+        pm.collectionVariables.set('recordRevision', String(record.revision));
+      }

@@ -1,0 +1,17 @@
+$kind: http-request
+order: 4000
+method: GET
+url: '{{baseUrl}}/api/v1/records/mine?page=0&size=10&sort=updatedAt,desc'
+queryParams:
+  - key: q
+    value: ''
+    disabled: true
+  - key: status
+    value: DRAFT
+    disabled: true
+  - key: page
+    value: '0'
+  - key: size
+    value: '10'
+  - key: sort
+    value: updatedAt,desc

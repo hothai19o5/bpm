@@ -7,6 +7,7 @@
  *
  * <p>Không dựng state machine riêng thay Flowable và không cho client tự đặt
  * requester, trạng thái cuối hoặc sửa toàn bộ dữ liệu sau khi gửi.
- * P1.3 chưa tạo entity/bảng hoặc triển khai transaction này.
+ * P5.1 đã nối draft API, Start Event field policy, pin schema/version và audit.
+ * Submit/engine và xử lý task tiếp tục ở các bước P5.2 trở đi.
  */
 package com.x.bpm.businessrecord;
