@@ -10,6 +10,8 @@ P2.3a–d đã có [permission catalog/shared policy/RBAC API](docs/P2.3-Authori
 
 P2.4a–d đã có [assignment resolver contract/implementation](docs/P2.4-Assignment-Resolver-Implementation-Guide.md) và [ma trận test source](docs/P2.4-Verification.md). **P2.4 chưa chạy build/test/dev và chưa nghiệm thu.**
 
+P3.1 đã có [hợp đồng schema/UI schema và API form](docs/P3.1-Form-Contract.md), fixture mua sắm và Postman. [8 kiểm thử P3.1 đạt trên Docker/PostgreSQL test riêng](docs/P3.1-Verification.md); collection/environment/workspace lint không error/warning. API hiện hỗ trợ tạo danh mục kèm draft đầu tiên và đọc version; các bước P3.2–P3.6 tiếp tục bổ sung validation dữ liệu, renderer/builder và publish.
+
 ## 1. Chuẩn bị lần đầu
 
 Trong PowerShell tại thư mục repository:

@@ -1,0 +1,138 @@
+$kind: http-request
+order: 1000
+method: POST
+url: '{{baseUrl}}/api/v1/form-definitions'
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "key": "purchase-request",
+      "name": "Đề nghị mua sắm",
+      "description": "Biểu mẫu mua sắm MVP C-10.",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "x-bpm-dialect": "bpm-form-v1",
+        "type": "object",
+        "title": "Đề nghị mua sắm",
+        "additionalProperties": false,
+        "properties": {
+          "itemName": {
+            "type": "string",
+            "title": "Tên hàng",
+            "x-field-type": "SHORT_TEXT",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Số lượng",
+            "x-field-type": "INTEGER",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "amount": {
+            "type": "string",
+            "title": "Tổng tiền (VND)",
+            "x-field-type": "MONEY_VND",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Lý do mua sắm",
+            "x-field-type": "LONG_TEXT",
+            "maxLength": 4000
+          },
+          "proposalAttachments": {
+            "type": "array",
+            "title": "Tài liệu đề xuất",
+            "x-field-type": "ATTACHMENT",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true,
+            "maxItems": 10
+          },
+          "budgetCode": {
+            "type": "string",
+            "title": "Mã ngân sách",
+            "x-field-type": "SHORT_TEXT",
+            "maxLength": 100
+          },
+          "budgetConfirmed": {
+            "type": "boolean",
+            "title": "Xác nhận đủ ngân sách",
+            "x-field-type": "CHECKBOX"
+          },
+          "completionNote": {
+            "type": "string",
+            "title": "Thông tin hoàn thành",
+            "x-field-type": "LONG_TEXT",
+            "maxLength": 4000
+          },
+          "receivedDate": {
+            "type": "string",
+            "title": "Ngày nhận hàng",
+            "x-field-type": "DATE",
+            "format": "date"
+          },
+          "receiptAttachments": {
+            "type": "array",
+            "title": "Chứng từ nhận hàng",
+            "x-field-type": "ATTACHMENT",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true,
+            "maxItems": 10
+          }
+        },
+        "required": [
+          "itemName",
+          "quantity",
+          "amount",
+          "reason",
+          "budgetCode",
+          "budgetConfirmed",
+          "completionNote",
+          "receivedDate"
+        ]
+      },
+      "uiSchema": {
+        "version": 1,
+        "groups": [
+          {
+            "id": "request",
+            "label": "Đề nghị mua sắm",
+            "fields": [
+              "itemName",
+              "quantity",
+              "amount",
+              "reason",
+              "proposalAttachments"
+            ]
+          },
+          {
+            "id": "budget",
+            "label": "Kiểm tra ngân sách",
+            "fields": [
+              "budgetCode",
+              "budgetConfirmed"
+            ]
+          },
+          {
+            "id": "fulfillment",
+            "label": "Thực hiện mua hàng",
+            "fields": [
+              "completionNote",
+              "receivedDate",
+              "receiptAttachments"
+            ]
+          }
+        ]
+      }
+    }
