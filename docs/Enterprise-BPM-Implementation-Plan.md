@@ -293,6 +293,8 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 **Cập nhật P4.4 ngày 04/11/2026:** Đã có extension BPM moddle và XML/metadata/DI round-trip frontend; projection metadata lấy từ XML, chung undo/redo, xóa/replace/đổi ID không để config mồ côi. Mở BPMN/JSON, reject mirror mâu thuẫn, build artifact từ một model. **16 Chrome + 78 form + 5 business-config tests đạt**, build/lint đạt (warning cũ). Xem [P4.4](P4.4-Artifact-Round-Trip.md). Chưa server validator/save/publish hoặc deploy engine; không thay API/Postman.
 
+**Cập nhật P4.5 ngày 05/11/2026:** Đã có validator server/allowlist XML an toàn, kiểm tra graph/DI/metadata/assignment/form/typed condition, API validate có lỗi theo elementId/field và compiler biểu thức nội bộ cố định. **Full backend: 295 đạt, 1 skipped restart opt-in; full frontend: 103 đạt**, build/lint và ba Postman lint đạt (warning nền đã ghi riêng). Xem [P4.5](P4.5-Server-Validation.md). Chưa save/publish/UI quản lý P4.6–P4.8.
+
 ## 9. Phase 5 — Hồ sơ, inbox và xử lý công việc xuyên suốt
 
 **Mục tiêu:** Có luồng người dùng thật từ chọn quy trình đến hoàn tất/từ chối/bổ sung. Chưa cần đủ dashboard và các khối cộng tác để chứng minh luồng này.

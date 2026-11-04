@@ -40,6 +40,30 @@ class ProcessCatalogIntegrationTest {
     @Autowired ProcessTransactionRunner transactions;
 
     @Test
+    void validatesUnsavedModelWithRealReferencesAndSecurityWithoutDeployOrAudit() throws Exception {
+        var admin=actor("process.design","form.design","form.publish");
+        String processKey=key();
+        var process=create(admin,processKey,"Validation");
+        var form=publishedFixture(admin,process,55);
+        var step=Map.<String,Object>of("assignment",Map.of("strategy","REQUESTER_MANAGER"),"actions",java.util.List.of("APPROVE"));
+        String template;try(var input=getClass().getResourceAsStream("/processes/p45-authoring.xml")){template=new String(input.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);}
+        String xml=template.formatted(json.writeValueAsString(Map.of("step",step,"formVersionId",form))).replace("\"purchase\"","\""+processKey+"\"");
+        var model=new ProcessModelInput(xml,Map.of("review",step,"f2",Map.of("outcome","APPROVE")),Map.of("review",Map.of("formVersionId",form.toString())));
+        String url=ROOT+"/"+id(process)+"/validate";
+        var body=json.writeValueAsBytes(model);
+        long deployments=jdbc.queryForObject("select count(*) from flowable.act_re_deployment",Long.class);
+
+        mvc.perform(post(url).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
+        mvc.perform(post(url).header("Authorization",actor("process.start").bearer()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
+        for(var tester:new TestActor[]{admin,actor("process.publish")}) mvc.perform(post(url).header("Authorization",tester.bearer()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isOk());
+        jdbc.update("update form_versions set status = 'RETIRED' where id = ?",form);
+        mvc.perform(post(url).header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.details[0].elementId").value("review"));
+        assertThat(jdbc.queryForObject("select count(*) from flowable.act_re_deployment",Long.class)).isEqualTo(deployments);
+        // Only actor fixtures above add identity audit; validation itself is read-only.
+        assertThat(jdbc.queryForObject("select count(*) from audit_events where entity_id = ? and action <> 'PROCESS_CREATED'",Long.class,id(process))).isZero();
+    }
+
+    @Test
     void createsAtomicDefinitionAndEmptyDraftWithoutDeployingAndRecordsAudit() throws Exception {
         var designer = actor("process.design");
         var deployments = jdbc.queryForObject("select count(*) from flowable.act_re_deployment", Long.class);
@@ -109,7 +133,7 @@ class ProcessCatalogIntegrationTest {
         var key = key();
         var useCase = new ProcessDefinitionUseCase(store, transactions,
                 () -> new ActorContext(designer.id().toString(), true, Set.of("process.design")),
-                (action, type, id, diff) -> { throw new IllegalStateException("audit unavailable"); });
+                (action, type, id, diff) -> { throw new IllegalStateException("audit unavailable"); }, org.mockito.Mockito.mock(ProcessValidationPort.class));
         assertThatThrownBy(() -> useCase.create(new CreateProcess(key, "Rollback", null, null)))
                 .isInstanceOf(IllegalStateException.class).hasMessage("audit unavailable");
         assertThat(jdbc.queryForObject("select count(*) from process_definitions where key = ?", Long.class, key)).isZero();

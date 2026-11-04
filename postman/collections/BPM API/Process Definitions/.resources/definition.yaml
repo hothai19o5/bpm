@@ -8,4 +8,4 @@ description: |-
   Catalog/start readers see only ACTIVE definitions pointing at their own PUBLISHED version with engine mapping. Scope is applied before count/pagination.
   GET definition/history/configuration requires process.design or process.publish; owner, start, catalog and monitor rights alone cannot read management metadata.
   History defaults to versionNumber,desc. Catalog sorts key/name/updatedAt asc/desc. Pages start at 0, size 1..100.
-  Canvas, draft editing, validation, publish and lifecycle are implemented in later P4 steps. Creating a draft never deploys to Flowable.
+  P4.5 POST /{definitionId}/validate checks the supplied unsaved authoring artifact for process.design/process.publish; returns 422 with field/elementId details. XML process ID must match definition key. This sample uses purchase-request. Validation never deploys. Draft editing, publish and lifecycle follow later. Creating a draft never deploys to Flowable.

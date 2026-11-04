@@ -14,6 +14,8 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class ProcessDefinitionUseCase {
+    private final ProcessValidationPort validator;
+    public ProcessModelInput validate(UUID id, ProcessModelInput input) { return validator.validate(definition(id).key(), input); }
     private final ProcessStore store;
     private final ProcessTransactionRunner transactions;
     private final CurrentActorProvider actors;
@@ -21,7 +23,8 @@ public final class ProcessDefinitionUseCase {
     private final AuthorizationPolicy policy = new AuthorizationPolicy();
 
     public ProcessDefinitionUseCase(ProcessStore store, ProcessTransactionRunner transactions,
-            CurrentActorProvider actors, AuditEventRecorder audit) {
+            CurrentActorProvider actors, AuditEventRecorder audit, ProcessValidationPort validator) {
+        this.validator = validator;
         this.store = store;
         this.transactions = transactions;
         this.actors = actors;

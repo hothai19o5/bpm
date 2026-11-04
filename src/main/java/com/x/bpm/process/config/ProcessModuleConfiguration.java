@@ -28,7 +28,7 @@ public class ProcessModuleConfiguration {
 
     @Bean
     public ProcessDefinitionUseCase processDefinitionUseCase(ProcessStore store, ProcessTransactionRunner transactions,
-            CurrentActorProvider actors, AuditEventRecorder audit) {
-        return new ProcessDefinitionUseCase(store, transactions, actors, audit);
+            CurrentActorProvider actors, AuditEventRecorder audit, com.x.bpm.process.application.ProcessValidationPort validator) {
+        return new ProcessDefinitionUseCase(store, transactions, actors, audit, validator);
     }
 }
