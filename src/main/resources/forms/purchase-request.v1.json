@@ -89,7 +89,8 @@
       "budgetCode",
       "budgetConfirmed",
       "completionNote",
-      "receivedDate"
+      "receivedDate",
+      "receiptAttachments"
     ]
   },
   "uiSchema": {

@@ -1,4 +1,8 @@
 spring:
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
   autoconfigure:
     # P2.1 will supply the account provider; do not generate a demo user/password.
     exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
@@ -29,6 +33,13 @@ server:
   shutdown: graceful
 
 bpm:
+  storage:
+    enabled: ${BPM_STORAGE_ENABLED:false}
+    endpoint: ${BPM_STORAGE_ENDPOINT:}
+    bucket: ${BPM_STORAGE_BUCKET:bpm-files}
+    region: ${BPM_STORAGE_REGION:us-east-1}
+    access-key: ${BPM_STORAGE_ACCESS_KEY:}
+    secret-key: ${BPM_STORAGE_SECRET_KEY:}
   security:
     jwt:
       secret-key: ${JWT_SECRET_KEY:}

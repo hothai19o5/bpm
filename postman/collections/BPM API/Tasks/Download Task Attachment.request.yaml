@@ -1,0 +1,4 @@
+$kind: http-request
+order: 11000
+method: GET
+url: '{{baseUrl}}/api/v1/tasks/{{taskId}}/attachments/{{attachmentId}}'

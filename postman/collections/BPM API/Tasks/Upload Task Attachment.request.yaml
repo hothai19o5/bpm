@@ -1,0 +1,25 @@
+$kind: http-request
+order: 10000
+method: POST
+url: '{{baseUrl}}/api/v1/tasks/{{taskId}}/attachments'
+body:
+  type: formdata
+  content:
+    - key: fieldId
+      type: text
+      value: '{{attachmentFieldId}}'
+    - key: expectedRevision
+      type: text
+      value: '{{recordRevision}}'
+    - key: file
+      type: file
+      src: ../../../fixtures/sample-receipt.pdf
+scripts:
+  - type: afterResponse
+    code: |-
+      if (pm.response.code === 200) {
+        const result = pm.response.json().data;
+        pm.collectionVariables.set('attachmentId', result.attachment.id);
+        pm.collectionVariables.set('recordRevision', String(result.recordRevision));
+      }
+    language: text/javascript

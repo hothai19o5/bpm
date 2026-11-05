@@ -2,6 +2,7 @@ package com.x.bpm.task.application;
 
 import com.x.bpm.audit.application.AuditEventRecorder;
 import com.x.bpm.businessrecord.application.RecordTransactionRunner;
+import com.x.bpm.businessrecord.application.RecordAttachmentLinks;
 import com.x.bpm.form.application.FormDataService;
 import com.x.bpm.form.domain.*;
 import com.x.bpm.identity.application.CurrentActorProvider;
@@ -23,11 +24,12 @@ public final class TaskInboxUseCase {
     private final TaskEnginePort engine;
     private final FormDataService forms;
     private final AuditEventRecorder audit;
+    private final RecordAttachmentLinks attachments;
 
     public TaskInboxUseCase(TaskRuntimeStore store, RecordTransactionRunner transactions, CurrentActorProvider actors,
-            AssignmentDirectoryPort directory, AssignmentResolver resolver, TaskEnginePort engine, FormDataService forms, AuditEventRecorder audit) {
+            AssignmentDirectoryPort directory, AssignmentResolver resolver, TaskEnginePort engine, FormDataService forms, AuditEventRecorder audit,RecordAttachmentLinks attachments) {
         this.store=store;this.transactions=transactions;this.actors=actors;this.directory=directory;
-        this.resolver=resolver;this.engine=engine;this.forms=forms;this.audit=audit;
+        this.resolver=resolver;this.engine=engine;this.forms=forms;this.audit=audit;this.attachments=attachments;
     }
 
     public PageResult<TaskSummary> list(Box box, String q, PageQuery page) {
@@ -93,7 +95,7 @@ public final class TaskInboxUseCase {
         context.policy().access().forEach((id,access)->readOnly.put(id,access==FormFieldAccess.HIDDEN?access:FormFieldAccess.READ_ONLY));
         boolean canComplete=assigned(actor,task);
         return new TaskDetail(summary(task),task.recordStatus(),task.recordRevision(),forms.read(context.form(),context.data(),canComplete?context.policy():new FormFieldPolicy(readOnly)),
-                task.engine().assignee()==null&&candidate(actor,task),canComplete?context.actions():List.of());
+                task.engine().assignee()==null&&candidate(actor,task),canComplete?context.actions():List.of(),attachments.visible(task.recordId(),context.policy(),context.data()));
     }
     public static TaskSummary summary(BusinessTask task){var engine=task.engine();return new TaskSummary(engine.taskId(),task.recordId(),task.businessKey(),task.recordTitle(),engine.name(),engine.taskDefinitionKey(),engine.assignee(),engine.createdAt());}
     private static void require(ActorContext actor,String permission){if(!actor.hasPermission(permission))throw forbidden();}

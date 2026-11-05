@@ -1,0 +1,19 @@
+$kind: http-request
+order: 12000
+method: POST
+url: '{{baseUrl}}/api/v1/tasks/{{taskId}}/complete'
+headers:
+  - key: Idempotency-Key
+    value: '{{taskOperationKey}}'
+body:
+  type: json
+  content: |-
+    {
+      "expectedRevision": {{recordRevision}},
+      "action": "COMPLETE",
+      "patch": {
+        "values": { "completionNote": "Đã nhận đủ hàng (dữ liệu kiểm thử).", "receivedDate": "2026-11-05" },
+        "removeFields": []
+      },
+      "reason": null
+    }

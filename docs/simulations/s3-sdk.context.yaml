@@ -1,0 +1,44 @@
+purpose:
+  stands_in_for: Private S3-compatible object storage, using published Adobe S3Mock 5.2.3 via Docker rather than a handwritten JSON mock.
+  unblocks: P5.7 controlled task receipt upload/download and COMPLETE; no real cloud credentials, user data or public bucket.
+assumptions:
+  - id: s3-sdk-protocol-path
+    status: supported
+    claim: AWS SDK 2.57.8 PUT, HEAD, GET and DELETE interoperate with S3Mock 5.2.3 for the tested PDF and custom hash metadata.
+    reason: The application exercised actual HTTP SDK calls and tests observed exact bytes, object metadata and prefix object counts.
+    verification: Full suite target/P57-full-2.log passed 340 tests plus 1 skipped restart on 2026-11-05. Receipt download matched upload bytes; object HEAD permitted a valid receipt and blocked a deleted object.
+    source: compose.test.yaml; pom.xml; S3AttachmentStorage.java; RecordDraftIntegrationTest.java
+    updated_at: "2026-11-05"
+  - id: upload-rollback-compensation
+    status: supported
+    claim: In the exercised audit and injected post-PUT failures, application metadata/data/revision rolled back and the newly written S3Mock object was removed.
+    reason: Tests checked both PostgreSQL state and S3 prefix keyCount after rollback, then exercised a successful upload.
+    verification: attachmentUploadValidatesAssigneeFieldTypeAndLimitAndCompensatesRealPutOnRollback passed in target/P57-full-2.log. The post-PUT exception models an ambiguous client failure after a confirmed PUT, not a measured real-provider timeout.
+    source: S3AttachmentStorage.java; TaskAttachmentUseCase.java; RecordDraftIntegrationTest.java
+    updated_at: "2026-11-05"
+  - id: legacy-initial-bucket-env
+    status: contradicted
+    claim: The legacy initialBuckets environment variable creates the bucket on S3Mock 5.2.3.
+    reason: The first run returned NoSuchBucket; vendor 5.x documentation replaces legacy variables.
+    verification: target/P57-full-1.log failed before a valid upload. compose.test.yaml now uses COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS; the subsequent full suite passed.
+    source: https://github.com/adobe/S3Mock/blob/5.2.3/README.md; compose.test.yaml
+    updated_at: "2026-11-05"
+  - id: real-provider-private-access
+    status: unknown
+    claim: The deployment's real S3 provider denies public object access and has the intended IAM/encryption/retention configuration.
+    reason: No real provider/account was configured or contacted; S3Mock is a protocol stand-in and does not validate those guarantees.
+    verification: Not established by these tests. Validate the chosen private bucket and account-specific policy before pilot in P9.
+    source: https://github.com/adobe/S3Mock/blob/5.2.3/README.md; docs/P5.7-Purchase-Runtime.md
+    updated_at: "2026-11-05"
+  - id: compensation-during-storage-outage
+    status: unknown
+    claim: A failed object cleanup during a concurrent provider outage is eventually retried automatically.
+    reason: Current minimum prerequisite logs cleanup failure; a durable orphan cleanup lifecycle remains P6.1.
+    verification: Successful compensation was tested. A durable cleanup retry worker has not been implemented or claimed.
+    source: S3AttachmentStorage.java; docs/P5.7-Purchase-Runtime.md
+    updated_at: "2026-11-05"
+fingerprints:
+  - id: p57-isolated-s3
+    date: "2026-11-05"
+    commit: null
+    cli: Docker 29.9.2; Postman 1.74.0; AWS SDK 2.57.8; adobe/s3mock 5.2.3

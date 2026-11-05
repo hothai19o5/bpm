@@ -38,6 +38,8 @@ variables:
   recordOperationKey: ""
   taskId: ""
   taskOperationKey: ""
+  attachmentId: ""
+  attachmentFieldId: receiptAttachments
 auth:
   type: bearer
   credentials:

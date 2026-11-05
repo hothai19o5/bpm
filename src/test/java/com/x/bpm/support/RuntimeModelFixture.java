@@ -11,8 +11,8 @@ public final class RuntimeModelFixture {
     private record Flow(String id,String source,String target,Map<String,Object> step) { }
     public static ProcessModelInput purchase(String key,String formId,Map<String,Object> managerAssignment,
             Map<String,Object> accountingAssignment,Map<String,Object> directorAssignment,Map<String,Object> purchasingAssignment) throws Exception {
-        var fields=Map.<String,Object>of("itemName","READ_ONLY","quantity","READ_ONLY","amount","READ_ONLY","reason","READ_ONLY","proposalAttachments","READ_ONLY");
-        var editable=new LinkedHashMap<String,Object>();fields.keySet().forEach(field->editable.put(field,"EDITABLE"));
+        var fields=new LinkedHashMap<String,Object>();for(String field:List.of("itemName","quantity","amount","reason","proposalAttachments","budgetCode","budgetConfirmed","completionNote","receivedDate","receiptAttachments"))fields.put(field,"READ_ONLY");
+        var editable=new LinkedHashMap<>(fields);for(String field:List.of("itemName","quantity","amount","reason","proposalAttachments"))editable.put(field,"EDITABLE");
         var accounting=new LinkedHashMap<>(fields);accounting.put("budgetCode","EDITABLE");accounting.put("budgetConfirmed","EDITABLE");
         var purchasing=new LinkedHashMap<>(fields);purchasing.put("completionNote","EDITABLE");purchasing.put("receivedDate","EDITABLE");purchasing.put("receiptAttachments","EDITABLE");
         var actions=List.of("APPROVE","REJECT","REQUEST_CHANGES");

@@ -40,6 +40,89 @@ class RecordDraftIntegrationTest {
     @Autowired org.flowable.engine.TaskService taskService;
     @Autowired TaskRuntimeStore runtimeTasks;@Autowired TaskCompletionStore completions;@Autowired TaskInboxUseCase inbox;
     @Autowired TaskEnginePort taskEngine;
+    @Autowired RecordAttachmentLinks attachmentLinks;
+    @Autowired AttachmentStore attachmentStore;@Autowired AttachmentStorage attachmentStorage;
+    @Autowired software.amazon.awssdk.services.s3.S3Client s3;
+    static final byte[] RECEIPT="%PDF-1.4\n1 0 obj<< /Type /Catalog >>endobj\n%%EOF".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+
+    @Test void purchaseRunsAllThresholdBoundariesThroughFourStrategiesAndRequiresRealLinkedReceipt() throws Exception {
+        var manager=actor("task.complete");var accounting=actor("task.complete","task.claim");UUID accountingDepartment=department(accounting);
+        var director=actor("task.complete");var purchasing=actor("task.complete","task.claim");UUID purchaseDepartment=department(purchasing);
+        UUID purchasingRole=jdbc.queryForObject("select role_id from user_roles where user_id=?",UUID.class,purchasing.id());
+        var process=publishedPurchaseProcess(Map.of("strategy","REQUESTER_MANAGER"),Map.of("strategy","DEPARTMENT","departmentId",accountingDepartment.toString()),specific(director),Map.of("strategy","ROLE","departmentId",purchaseDepartment.toString(),"roleId",purchasingRole.toString()));
+        var requester=actor("record.create","process.start","record.read.own","task.complete");UUID requestDepartment=department(requester);member(manager,requestDepartment);jdbc.update("update departments set manager_user_id=? where id=?",manager.id(),requestDepartment);
+        String foreignReceipt=null;
+        for(String amount:List.of("49999999","50000000","50000001")){
+            var data=new LinkedHashMap<>(completeData());data.put("amount",amount);var record=postRecord(requester,createBody(process,data),200);
+            submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);String instance=activeTask(record).getProcessInstanceId();
+            act(manager,record,"manager",FormAction.APPROVE,Map.of(),null,200);claim(accounting,activeTask(record).getId(),200);
+            act(accounting,record,"accounting",FormAction.APPROVE,Map.of("budgetCode","B57","budgetConfirmed",true),null,200);
+            if(!amount.equals("49999999")){assertThat(activeTask(record).getTaskDefinitionKey()).isEqualTo("director");act(director,record,"director",FormAction.APPROVE,Map.of(),null,200);}
+            assertThat(activeTask(record).getTaskDefinitionKey()).isEqualTo("purchasing");String task=activeTask(record).getId();long revision=taskDetail(purchasing,task,200).get("recordRevision").asLong();
+            upload(purchasing,task,"receiptAttachments",revision,"receipt.pdf",RECEIPT,403);claim(purchasing,task,200);
+            var completion=new LinkedHashMap<String,Object>(Map.of("completionNote","Đã nhận đủ hàng","receivedDate","2026-11-05"));
+            act(purchasing,record,"purchasing",FormAction.COMPLETE,completion,null,422);
+            completion.put("receiptAttachments",List.of(foreignReceipt==null?UUID.randomUUID().toString():foreignReceipt));act(purchasing,record,"purchasing",FormAction.COMPLETE,completion,null,422);completion.remove("receiptAttachments");
+            var uploaded=upload(purchasing,task,"receiptAttachments",revision,"Chứng từ.pdf",RECEIPT,200);String file=uploaded.get("attachment").get("id").asString();foreignReceipt=file;
+            assertThat(uploaded.get("recordRevision").asLong()).isGreaterThan(revision);
+            upload(purchasing,task,"receiptAttachments",revision,"Duplicate retry.pdf",RECEIPT,409);
+            var loaded=taskDetail(purchasing,task,200);assertThat(loaded.get("attachments").get(0).get("id").asString()).isEqualTo(file);
+            assertThat(loaded.get("view").get("data").get("receiptAttachments").get(0).asString()).isEqualTo(file);
+            mvc.perform(get("/api/v1/tasks/"+task+"/attachments/"+file).header("Authorization",purchasing.bearer())).andExpect(status().isOk()).andExpect(content().bytes(RECEIPT)).andExpect(header().string("X-Content-Type-Options","nosniff")).andExpect(header().string("Cache-Control","no-store")).andExpect(header().string("Content-Disposition",org.hamcrest.Matchers.startsWith("attachment;")));
+            mvc.perform(get("/api/v1/tasks/"+task+"/attachments/"+file).header("Authorization",requester.bearer())).andExpect(status().isForbidden());
+            complete(purchasing,task,new CompleteTask(revision,FormAction.COMPLETE,new FormDataPatch(completion),null),UUID.randomUUID(),409);
+            var result=act(purchasing,record,"purchasing",FormAction.COMPLETE,completion,null,200);assertThat(result.get("recordStatus").asString()).isEqualTo("COMPLETED");
+            assertThat(engine.findHistory(instance).orElseThrow().endedAt()).isNotNull();assertThat(taskService.createTaskQuery().processInstanceId(instance).count()).isZero();
+            assertThat(jdbc.queryForObject("select count(*) from record_attachments where business_record_id=?",Long.class,id(record))).isEqualTo(1);
+            assertThat(jdbc.queryForObject("select count(*) from flowable.act_hi_taskinst where proc_inst_id_=? and task_def_key_='director'",Long.class,instance)).isEqualTo(amount.equals("49999999")?0:1);
+        }
+    }
+
+    @Test void attachmentUploadValidatesAssigneeFieldTypeAndLimitAndCompensatesRealPutOnRollback() throws Exception {
+        var manager=actor("task.complete");var accounting=actor("task.complete");var purchasing=actor("task.complete");
+        var process=publishedPurchaseProcess(specific(manager),specific(accounting),specific(manager),specific(purchasing));var requester=actor(REQUESTER);department(requester);var record=postRecord(requester,createBody(process,completeData()),200);
+        submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);act(manager,record,"manager",FormAction.APPROVE,Map.of(),null,200);act(accounting,record,"accounting",FormAction.APPROVE,Map.of("budgetCode","B57","budgetConfirmed",true),null,200);
+        String task=activeTask(record).getId();long revision=taskDetail(purchasing,task,200).get("recordRevision").asLong();String prefix="records/"+id(record)+"/";
+        upload(purchasing,task,"proposalAttachments",revision,"receipt.pdf",RECEIPT,403);upload(purchasing,task,"amount",revision,"receipt.pdf",RECEIPT,403);
+        upload(purchasing,task,"receiptAttachments",revision,"receipt.pdf","<html/>".getBytes(java.nio.charset.StandardCharsets.US_ASCII),422);
+        upload(purchasing,task,"receiptAttachments",revision,"../receipt.pdf",RECEIPT,422);upload(purchasing,task,"receiptAttachments",revision,"receipt.exe",RECEIPT,422);
+        jdbc.execute("alter table audit_events add constraint p57_upload_fault check (action <> 'FILE_UPLOADED') not valid");
+        try{upload(purchasing,task,"receiptAttachments",revision,"receipt.pdf",RECEIPT,500);}finally{jdbc.execute("alter table audit_events drop constraint p57_upload_fault");}
+        assertNoUploadedFile(record,prefix,revision);
+        AttachmentStorage failedAfterPut=new AttachmentStorage(){public String bucket(){return attachmentStorage.bucket();}public void put(String key,byte[] bytes,String type){attachmentStorage.put(key,bytes,type);throw new IllegalStateException("Injected after real S3 PUT");}public byte[] read(String bucket,String key){return attachmentStorage.read(bucket,key);}public void delete(String key){attachmentStorage.delete(key);}public void verify(String bucket,String key,long size,String hash){attachmentStorage.verify(bucket,key,size,hash);}};
+        var failing=new TaskAttachmentUseCase(runtimeTasks,inbox,attachmentStore,failedAfterPut,transactions,()->new ActorContext(purchasing.id().toString(),true,Set.of("task.complete")),(a,b,c,d)->{});
+        assertThatThrownBy(()->failing.upload(task,"receiptAttachments",revision,"receipt.pdf",RECEIPT)).isInstanceOf(IllegalStateException.class);assertNoUploadedFile(record,prefix,revision);
+        for(int i=0;i<10;i++){long current=taskDetail(purchasing,task,200).get("recordRevision").asLong();upload(purchasing,task,"receiptAttachments",current,"receipt-"+i+".pdf",RECEIPT,200);}
+        upload(purchasing,task,"receiptAttachments",taskDetail(purchasing,task,200).get("recordRevision").asLong(),"eleventh.pdf",RECEIPT,422);
+        assertThat(jdbc.queryForObject("select count(*) from record_attachments where business_record_id=?",Long.class,id(record))).isEqualTo(10);assertThat(s3.listObjectsV2(request->request.bucket(attachmentStorage.bucket()).prefix(prefix)).keyCount()).isEqualTo(10);
+        String missingObject=jdbc.queryForList("select object_key from record_attachments where business_record_id=?",String.class,id(record)).getFirst();s3.deleteObject(request->request.bucket(attachmentStorage.bucket()).key(missingObject));
+        long before=taskDetail(purchasing,task,200).get("recordRevision").asLong();act(purchasing,record,"purchasing",FormAction.COMPLETE,Map.of("completionNote","Đã nhận đủ hàng","receivedDate","2026-11-05"),null,500);
+        assertThat(activeTask(record).getId()).isEqualTo(task);assertThat(jdbc.queryForObject("select revision from business_records where id=?",Long.class,id(record))).isEqualTo(before);
+        assertThat(jdbc.queryForObject("select count(*) from task_action_logs where business_record_id=? and action='COMPLETE'",Long.class,id(record))).isZero();
+    }
+
+    @Test void purchaseOrgChangesPreserveSubmittedDepartmentAndDoNotMoveExistingTask() throws Exception {
+        var manager=actor("task.complete");var replacement=actor("task.complete");var accounting=actor("task.complete");var director=actor("task.complete");var purchasing=actor("task.complete");
+        var process=publishedPurchaseProcess(Map.of("strategy","REQUESTER_MANAGER"),specific(accounting),specific(director),specific(purchasing));
+        var requester=actor("record.create","process.start","record.read.own","task.complete");UUID original=department(requester);member(manager,original);member(replacement,original);jdbc.update("update departments set manager_user_id=? where id=?",manager.id(),original);
+        var record=postRecord(requester,createBody(process,completeData()),200);submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);
+        var otherManager=actor("task.complete");UUID moved=department(otherManager);jdbc.update("update departments set manager_user_id=? where id=?",otherManager.id(),moved);jdbc.update("update department_members set department_id=? where user_id=?",moved,requester.id());jdbc.update("update departments set manager_user_id=? where id=?",replacement.id(),original);
+        assertThat(activeTask(record).getAssignee()).isEqualTo(manager.id().toString());act(manager,record,"manager",FormAction.REQUEST_CHANGES,Map.of(),"Cập nhật đề nghị",200);act(requester,record,"correction",FormAction.RESUBMIT,Map.of("quantity",2),null,200);
+        assertThat(activeTask(record).getAssignee()).isEqualTo(replacement.id().toString());assertThat(jdbc.queryForObject("select requester_department_id from business_records where id=?",UUID.class,id(record))).isEqualTo(original);
+    }
+
+    @Test void purchaseMissingOrSelfManagerStaysWaitingAndDirectoryRepairOnlyAffectsNewRecords() throws Exception {
+        var accounting=actor("task.complete");var director=actor("task.complete");var purchasing=actor("task.complete");var process=publishedPurchaseProcess(Map.of("strategy","REQUESTER_MANAGER"),specific(accounting),specific(director),specific(purchasing));
+        var requester=actor("record.create","process.start","record.read.own","task.complete","task.claim");UUID scope=department(requester);
+        var missing=postRecord(requester,createBody(process,completeData()),200);submit(requester,missing,new SubmitRecord(0L,missing.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);assertAssignmentFailure(missing,"MANAGER_MISSING");
+        jdbc.update("update departments set manager_user_id=? where id=?",requester.id(),scope);var self=postRecord(requester,createBody(process,completeData()),200);submit(requester,self,new SubmitRecord(0L,self.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);assertAssignmentFailure(self,"SELF_APPROVAL");
+        claim(requester,activeTask(self).getId(),403);var manager=actor("task.complete");member(manager,scope);jdbc.update("update departments set manager_user_id=? where id=?",manager.id(),scope);
+        assertThat(activeTask(missing).getAssignee()).isNull();assertThat(activeTask(self).getAssignee()).isNull();
+        var repaired=postRecord(requester,createBody(process,completeData()),200);submit(requester,repaired,new SubmitRecord(0L,repaired.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);assertThat(activeTask(repaired).getAssignee()).isEqualTo(manager.id().toString());
+    }
+
+    private void assertNoUploadedFile(JsonNode record,String prefix,long revision){assertThat(jdbc.queryForObject("select count(*) from record_attachments where business_record_id=?",Long.class,id(record))).isZero();assertThat(jdbc.queryForObject("select revision from business_records where id=?",Long.class,id(record))).isEqualTo(revision);assertThat(s3.listObjectsV2(request->request.bucket(attachmentStorage.bucket()).prefix(prefix)).keyCount()).isZero();}
+    private JsonNode upload(Actor actor,String task,String field,long revision,String name,byte[] bytes,int expected)throws Exception{return json.readTree(mvc.perform(multipart("/api/v1/tasks/"+task+"/attachments").file(new org.springframework.mock.web.MockMultipartFile("file",name,"text/html",bytes)).param("fieldId",field).param("expectedRevision",Long.toString(revision)).header("Authorization",actor.bearer())).andExpect(status().is(expected)).andReturn().getResponse().getContentAsString()).get("data");}
 
     @Test void correctionKeepsOneInstanceResetsConfiguredDecisionsAndReevaluatesThresholdAcrossTwoRounds() throws Exception {
         var manager=actor("task.complete");var accounting=actor("task.complete");var director=actor("task.complete");var purchasing=actor("task.complete");
@@ -52,7 +135,7 @@ class RecordDraftIntegrationTest {
         act(director,record,"director",FormAction.REQUEST_CHANGES,Map.of(),null,422);
         var changes=act(director,record,"director",FormAction.REQUEST_CHANGES,Map.of(),"Cần điều chỉnh số tiền",200);assertThat(changes.get("recordStatus").asString()).isEqualTo("CHANGES_REQUESTED");
         var correction=activeTask(record);assertThat(correction.getTaskDefinitionKey()).isEqualTo("correction");assertThat(correction.getAssignee()).isEqualTo(requester.id().toString());
-        var view=taskDetail(requester,correction.getId(),200);assertThat(view.get("view").get("data").has("budgetConfirmed")).isFalse();assertThat(view.get("actions").get(0).asString()).isEqualTo("RESUBMIT");
+        var view=taskDetail(requester,correction.getId(),200);assertThat(view.get("view").get("data").get("budgetConfirmed").asBoolean()).isTrue();assertThat(view.get("view").get("fieldAccess").get("budgetConfirmed").asString()).isEqualTo("READ_ONLY");assertThat(view.get("actions").get(0).asString()).isEqualTo("RESUBMIT");
         complete(manager,correction.getId(),new CompleteTask(view.get("recordRevision").asLong(),FormAction.RESUBMIT,new FormDataPatch(Map.of()),null),UUID.randomUUID(),403);
         complete(requester,correction.getId(),new CompleteTask(view.get("recordRevision").asLong(),FormAction.RESUBMIT,new FormDataPatch(Map.of("budgetConfirmed",true)),null),UUID.randomUUID(),403);
         var resubmit=new CompleteTask(view.get("recordRevision").asLong(),FormAction.RESUBMIT,new FormDataPatch(Map.of("amount","49999999")),null);UUID requestKey=UUID.randomUUID();
@@ -160,7 +243,7 @@ class RecordDraftIntegrationTest {
         var requester=actor(REQUESTER);department(requester);var record=postRecord(requester,createBody(process,completeData()),200);submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);
         String task=activeTask(record).getId();long revision=taskDetail(approver,task,200).get("recordRevision").asLong();var command=new CompleteTask(revision,FormAction.APPROVE,new FormDataPatch(Map.of("budgetConfirmed",true)),null);UUID operation=UUID.randomUUID();
         TaskEnginePort failingEngine=new TaskEnginePort(){public List<EngineTask> findActiveByInstance(String id){return taskEngine.findActiveByInstance(id);}public List<EngineTask> findAssigned(String id,String user){return taskEngine.findAssigned(id,user);}public List<EngineTask> findCandidates(String id,String user,Set<String> groups){return taskEngine.findCandidates(id,user,groups);}public EngineTask claim(String id,String user,Set<String> groups){return taskEngine.claim(id,user,groups);}public void complete(String id,String user,Map<String,Object> variables){taskEngine.complete(id,user,variables);throw new IllegalStateException("Injected after real engine completion");}};
-        var useCase=new CompleteTaskUseCase(runtimeTasks,completions,transactions,()->new ActorContext(approver.id().toString(),true,Set.of("task.complete")),inbox,forms,failingEngine,engine,engineData,(a,b,c,d)->{});
+        var useCase=new CompleteTaskUseCase(runtimeTasks,completions,transactions,()->new ActorContext(approver.id().toString(),true,Set.of("task.complete")),inbox,forms,failingEngine,engine,engineData,(a,b,c,d)->{},attachmentLinks);
         assertThatThrownBy(()->useCase.complete(task,command,operation)).isInstanceOf(IllegalStateException.class);
         assertCompletionRolledBack(record,task,revision);
         jdbc.execute("alter table audit_events add constraint p55_complete_fault check (action <> 'TASK_COMPLETED') not valid");

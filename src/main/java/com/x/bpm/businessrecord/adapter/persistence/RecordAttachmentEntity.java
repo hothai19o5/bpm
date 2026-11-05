@@ -61,4 +61,10 @@ public class RecordAttachmentEntity extends MutableEntity {
 
     @Column(name = "linked_at")
     private Instant linkedAt;
+
+    @Column(name = "field_id", length = 100)
+    private String fieldId;
+
+    @Column(length = 64)
+    private String sha256;
 }

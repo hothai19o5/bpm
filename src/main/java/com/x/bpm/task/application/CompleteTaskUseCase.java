@@ -16,10 +16,11 @@ public final class CompleteTaskUseCase {
     private final TaskRuntimeStore tasks;private final TaskCompletionStore completions;private final RecordTransactionRunner transactions;
     private final CurrentActorProvider actors;private final TaskInboxUseCase access;private final FormDataService forms;
     private final TaskEnginePort taskEngine;private final ProcessEnginePort processEngine;private final RecordEngineData encoding;private final AuditEventRecorder audit;
+    private final RecordAttachmentLinks attachments;
     public CompleteTaskUseCase(TaskRuntimeStore tasks,TaskCompletionStore completions,RecordTransactionRunner transactions,CurrentActorProvider actors,
-            TaskInboxUseCase access,FormDataService forms,TaskEnginePort taskEngine,ProcessEnginePort processEngine,RecordEngineData encoding,AuditEventRecorder audit){
+            TaskInboxUseCase access,FormDataService forms,TaskEnginePort taskEngine,ProcessEnginePort processEngine,RecordEngineData encoding,AuditEventRecorder audit,RecordAttachmentLinks attachments){
         this.tasks=tasks;this.completions=completions;this.transactions=transactions;this.actors=actors;this.access=access;this.forms=forms;
-        this.taskEngine=taskEngine;this.processEngine=processEngine;this.encoding=encoding;this.audit=audit;
+        this.taskEngine=taskEngine;this.processEngine=processEngine;this.encoding=encoding;this.audit=audit;this.attachments=attachments;
     }
     public TaskCompletionResult complete(String taskId,CompleteTask command,UUID requestKey){
         var actor=actors.requireCurrentActor();if(!actor.hasPermission("task.complete"))throw forbidden();
@@ -43,7 +44,7 @@ public final class CompleteTaskUseCase {
             var data=forms.applyPatch(context.form(),context.data(),command.patch(),context.policy(),command.action(),command.reason());
             var reset=command.action()==com.x.bpm.form.domain.FormAction.RESUBMIT?context.resetFieldsOnResubmit():Set.<String>of();
             if(!reset.isEmpty()){var refreshed=new LinkedHashMap<>(data);reset.forEach(refreshed::remove);data=refreshed;}
-            RecordAttachmentGuard.requireLinked(context.form(),data);
+            attachments.requireLinked(recordId,context.form(),data);
             completions.prepare(task,command,actorId,requestKey,fingerprint,data,reset);
             taskEngine.complete(taskId,actor.userId(),Map.of("bpmFormData",encoding.encode(data),"bpmOutcome",command.action().name()));
             String status;Instant completedAt=null;
