@@ -50,7 +50,7 @@ public class TaskActionLogEntity extends CreatedEntity {
     @Column(name = "action", nullable = false, length = 100)
     private String action;
 
-    @Column(name = "comment", nullable = true, length = 2000)
+    @Column(name = "comment", nullable = true, length = 4000)
     private String comment;
 
     @JdbcTypeCode(SqlTypes.JSON)

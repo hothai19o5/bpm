@@ -96,9 +96,7 @@ public final class RecordDraftUseCase {
     /** Ownership/storage linking will be supplied at P6; opaque UUIDs never count as uploaded files. */
     @SuppressWarnings("unchecked")
     static void requireAttachmentsLinked(RecordTemplate t,Map<String,Object> data) {
-        var fields=(Map<String,Map<String,Object>>)(Map<?,?>)t.form().schema().get("properties");
-        for(var entry:fields.entrySet())if("ATTACHMENT".equals(entry.getValue().get("x-field-type"))&&data.get(entry.getKey()) instanceof List<?> ids&&!ids.isEmpty())
-            throw new ApplicationException(ErrorCode.VALIDATION_FAILED,"Tệp chưa được liên kết với hồ sơ.",List.of(new ValidationIssue(entry.getKey(),"Chỉ nhận tệp đã được tải lên và liên kết qua dịch vụ tệp.",null)));
+        RecordAttachmentGuard.requireLinked(t.form(),data);
     }
     private static ApplicationException invalid(){return new ApplicationException(ErrorCode.INVALID_REQUEST,"Dữ liệu hồ sơ, revision hoặc bộ lọc không hợp lệ.");}
     private static ApplicationException missing(){return new ApplicationException(ErrorCode.NOT_FOUND,"Không tìm thấy hồ sơ.");}

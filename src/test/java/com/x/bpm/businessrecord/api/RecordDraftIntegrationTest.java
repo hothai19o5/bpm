@@ -6,6 +6,9 @@ import com.x.bpm.identity.application.*;
 import com.x.bpm.identity.domain.*;
 import com.x.bpm.process.application.*;
 import com.x.bpm.process.adapter.persistence.ProcessVersionEntity;
+import com.x.bpm.task.application.*;
+import com.x.bpm.task.application.engine.*;
+import com.x.bpm.form.domain.FormAction;
 import com.x.bpm.support.IsolatedPostgresTest;
 import jakarta.persistence.EntityManager;
 import java.util.*;
@@ -35,6 +38,81 @@ class RecordDraftIntegrationTest {
     @Autowired RecordEngineData engineData;
     @Autowired java.time.Clock clock;
     @Autowired org.flowable.engine.TaskService taskService;
+    @Autowired TaskRuntimeStore runtimeTasks;@Autowired TaskCompletionStore completions;@Autowired TaskInboxUseCase inbox;
+    @Autowired TaskEnginePort taskEngine;
+
+    @Test void completeRetriesAreAtomicAndAdvanceOneTaskThenReportActualTerminalStateAfterRetirement() throws Exception {
+        var approver=actor("task.complete");var process=publishedProcess(Map.of("strategy","SPECIFIC_USER","specificUserId",approver.id().toString()),true);
+        var requester=actor(REQUESTER);department(requester);var record=postRecord(requester,createBody(process,completeData()),200);
+        submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);String taskId=activeTask(record).getId();
+        var detail=taskDetail(approver,taskId,200);long revision=detail.get("recordRevision").asLong();UUID operation=UUID.randomUUID();
+        var command=new CompleteTask(revision,FormAction.APPROVE,new FormDataPatch(Map.of("budgetConfirmed",true)),null);
+        var publisher=actor("process.publish");mvc.perform(post("/api/v1/process-definitions/"+process.get("definition").get("id").asString()+"/retire").header("Authorization",publisher.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",versionId(process),"expectedRevision",2)))).andExpect(status().isOk());
+        var barrier=new CyclicBarrier(2);JsonNode result;
+        try(var pool=Executors.newFixedThreadPool(2)){Callable<JsonNode> call=()->{barrier.await(30,TimeUnit.SECONDS);return complete(approver,taskId,command,operation,200);};var a=pool.submit(call);var b=pool.submit(call);result=a.get(60,TimeUnit.SECONDS);assertThat(b.get(60,TimeUnit.SECONDS)).isEqualTo(result);}
+        assertThat(result.get("recordStatus").asString()).isEqualTo("IN_PROGRESS");assertThat(result.get("recordRevision").asLong()).isGreaterThan(revision);
+        assertThat(jdbc.queryForObject("select revision from business_records where id=?",Long.class,id(record))).isEqualTo(result.get("recordRevision").asLong());
+        String next=activeTask(record).getId();assertThat(next).isNotEqualTo(taskId);assertThat(activeTask(record).getTaskDefinitionKey()).isEqualTo("review2");
+        assertThat(jdbc.queryForObject("select form_data->>'budgetConfirmed' from business_records where id=?",String.class,id(record))).isEqualTo("true");
+        assertThat(jdbc.queryForObject("select count(*) from task_action_logs where engine_task_id=?",Long.class,taskId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from task_completion_receipts where engine_task_id=?",Long.class,taskId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from audit_events where action='TASK_COMPLETED' and entity_id=?",Long.class,taskId)).isEqualTo(1);
+        complete(approver,taskId,new CompleteTask(revision,FormAction.APPROVE,new FormDataPatch(Map.of("budgetConfirmed",false)),null),operation,409);
+        complete(approver,"unknown-task",command,operation,409);
+        complete(approver,taskId,new CompleteTask(revision,FormAction.APPROVE,new FormDataPatch(Map.of("budgetConfirmed",true)),""),operation,409);
+        complete(approver,taskId,command,UUID.randomUUID(),409);
+        var terminal=complete(approver,next,new CompleteTask(result.get("recordRevision").asLong(),FormAction.APPROVE,new FormDataPatch(Map.of()),null),UUID.randomUUID(),200);
+        assertThat(terminal.get("recordStatus").asString()).isEqualTo("COMPLETED");assertThat(taskService.createTaskQuery().processInstanceId(jdbc.queryForObject("select engine_instance_id from business_records where id=?",String.class,id(record))).count()).isZero();
+        assertThat(jdbc.queryForObject("select completed_at is not null from business_records where id=?",Boolean.class,id(record))).isTrue();
+        assertThat(complete(approver,taskId,command,operation,200)).isEqualTo(result);
+    }
+
+    @Test void differentCompletionKeysHaveOneWinnerAndGlobalKeyCannotBeReusedAcrossRecords() throws Exception {
+        var approver=actor("task.complete");var process=publishedProcess(Map.of("strategy","SPECIFIC_USER","specificUserId",approver.id().toString()),false);
+        var requester=actor(REQUESTER);department(requester);var records=new ArrayList<JsonNode>();var taskIds=new ArrayList<String>();
+        for(int i=0;i<3;i++){var record=postRecord(requester,createBody(process,completeData()),200);submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);records.add(record);taskIds.add(activeTask(record).getId());}
+        long revision=taskDetail(approver,taskIds.get(0),200).get("recordRevision").asLong();var command=new CompleteTask(revision,FormAction.APPROVE,new FormDataPatch(Map.of("budgetConfirmed",true)),null);var barrier=new CyclicBarrier(2);
+        try(var pool=Executors.newFixedThreadPool(2)){var a=pool.submit(()->{barrier.await(30,TimeUnit.SECONDS);return completeStatus(approver,taskIds.get(0),command,UUID.randomUUID());});var b=pool.submit(()->{barrier.await(30,TimeUnit.SECONDS);return completeStatus(approver,taskIds.get(0),command,UUID.randomUUID());});assertThat(List.of(a.get(60,TimeUnit.SECONDS),b.get(60,TimeUnit.SECONDS))).containsExactlyInAnyOrder(200,409);}
+        UUID shared=UUID.randomUUID();var gate=new CyclicBarrier(2);var commands=List.of(new CompleteTask(taskDetail(approver,taskIds.get(1),200).get("recordRevision").asLong(),FormAction.APPROVE,new FormDataPatch(Map.of("budgetConfirmed",true)),null),new CompleteTask(taskDetail(approver,taskIds.get(2),200).get("recordRevision").asLong(),FormAction.APPROVE,new FormDataPatch(Map.of("budgetConfirmed",true)),null));
+        try(var pool=Executors.newFixedThreadPool(2)){var a=pool.submit(()->{gate.await(30,TimeUnit.SECONDS);return completeStatus(approver,taskIds.get(1),commands.get(0),shared);});var b=pool.submit(()->{gate.await(30,TimeUnit.SECONDS);return completeStatus(approver,taskIds.get(2),commands.get(1),shared);});assertThat(List.of(a.get(60,TimeUnit.SECONDS),b.get(60,TimeUnit.SECONDS))).containsExactlyInAnyOrder(200,409);}
+        assertThat(jdbc.queryForObject("select count(*) from task_completion_receipts where actor_id=?",Long.class,approver.id())).isEqualTo(2);
+        assertThat(taskIds.stream().filter(id->taskService.createTaskQuery().taskId(id).count()==1).count()).isEqualTo(1);
+        String waiting=taskIds.stream().filter(id->taskService.createTaskQuery().taskId(id).count()==1).findFirst().orElseThrow();
+        complete(approver,waiting,new CompleteTask(taskDetail(approver,waiting,200).get("recordRevision").asLong(),FormAction.APPROVE,new FormDataPatch(Map.of("budgetConfirmed",true)),null),UUID.randomUUID(),200);
+    }
+
+    @Test void completionChecksCurrentAssigneeRevisionActionAndFieldPolicyBeforeMutation() throws Exception {
+        var approver=actor("task.claim","task.complete");UUID scope=department(approver);var process=publishedProcess(Map.of("strategy","DEPARTMENT","departmentId",scope.toString()),false);
+        var requester=actor(REQUESTER);department(requester);var record=postRecord(requester,createBody(process,completeData()),200);
+        submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);String task=activeTask(record).getId();long revision=taskDetail(approver,task,200).get("recordRevision").asLong();
+        assertThat(taskDetail(approver,task,200).get("actions").isEmpty()).isTrue();complete(approver,task,new CompleteTask(revision,FormAction.APPROVE,new FormDataPatch(Map.of()),null),UUID.randomUUID(),403);
+        claim(approver,task,200);var outsider=actor("task.complete","record.read.all");complete(outsider,task,new CompleteTask(revision,FormAction.APPROVE,new FormDataPatch(Map.of()),null),UUID.randomUUID(),403);
+        complete(approver,task,new CompleteTask(revision-1,FormAction.APPROVE,new FormDataPatch(Map.of()),null),UUID.randomUUID(),409);
+        complete(approver,task,new CompleteTask(revision,FormAction.REJECT,new FormDataPatch(Map.of()),"No"),UUID.randomUUID(),403);
+        for(var values:List.of(Map.<String,Object>of("amount","1"),Map.<String,Object>of("budgetCode","secret")))complete(approver,task,new CompleteTask(revision,FormAction.APPROVE,new FormDataPatch(values),null),UUID.randomUUID(),403);
+        complete(approver,task,new CompleteTask(revision,FormAction.APPROVE,new FormDataPatch(Map.of("budgetConfirmed","not a boolean")),null),UUID.randomUUID(),422);
+        complete(approver,task,new CompleteTask(revision,FormAction.APPROVE,new FormDataPatch(Map.of()),"x".repeat(4001)),UUID.randomUUID(),422);
+        assertThat(jdbc.queryForObject("select count(*) from task_action_logs where engine_task_id=?",Long.class,task)).isZero();assertThat(activeTask(record).getId()).isEqualTo(task);
+        complete(approver,task,new CompleteTask(revision,FormAction.APPROVE,new FormDataPatch(Map.of("budgetConfirmed",true)),null),UUID.randomUUID(),200);
+    }
+
+    @Test void failureAfterEngineCompleteOrFinalAuditRollsBackAllApplicationAndEngineChanges() throws Exception {
+        var approver=actor("task.complete");var process=publishedProcess(Map.of("strategy","SPECIFIC_USER","specificUserId",approver.id().toString()),true);
+        var requester=actor(REQUESTER);department(requester);var record=postRecord(requester,createBody(process,completeData()),200);submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);
+        String task=activeTask(record).getId();long revision=taskDetail(approver,task,200).get("recordRevision").asLong();var command=new CompleteTask(revision,FormAction.APPROVE,new FormDataPatch(Map.of("budgetConfirmed",true)),null);UUID operation=UUID.randomUUID();
+        TaskEnginePort failingEngine=new TaskEnginePort(){public List<EngineTask> findActiveByInstance(String id){return taskEngine.findActiveByInstance(id);}public List<EngineTask> findAssigned(String id,String user){return taskEngine.findAssigned(id,user);}public List<EngineTask> findCandidates(String id,String user,Set<String> groups){return taskEngine.findCandidates(id,user,groups);}public EngineTask claim(String id,String user,Set<String> groups){return taskEngine.claim(id,user,groups);}public void complete(String id,String user,Map<String,Object> variables){taskEngine.complete(id,user,variables);throw new IllegalStateException("Injected after real engine completion");}};
+        var useCase=new CompleteTaskUseCase(runtimeTasks,completions,transactions,()->new ActorContext(approver.id().toString(),true,Set.of("task.complete")),inbox,forms,failingEngine,engine,engineData,(a,b,c,d)->{});
+        assertThatThrownBy(()->useCase.complete(task,command,operation)).isInstanceOf(IllegalStateException.class);
+        assertCompletionRolledBack(record,task,revision);
+        jdbc.execute("alter table audit_events add constraint p55_complete_fault check (action <> 'TASK_COMPLETED') not valid");
+        try{complete(approver,task,command,operation,500);}finally{jdbc.execute("alter table audit_events drop constraint p55_complete_fault");}
+        assertCompletionRolledBack(record,task,revision);
+        complete(approver,task,command,operation,200);assertThat(activeTask(record).getTaskDefinitionKey()).isEqualTo("review2");
+    }
+
+    private void assertCompletionRolledBack(JsonNode record,String task,long revision){assertThat(activeTask(record).getId()).isEqualTo(task);assertThat(jdbc.queryForObject("select revision from business_records where id=?",Long.class,id(record))).isEqualTo(revision);assertThat(jdbc.queryForObject("select jsonb_exists(form_data,'budgetConfirmed') from business_records where id=?",Boolean.class,id(record))).isFalse();assertThat(jdbc.queryForObject("select count(*) from task_action_logs where business_record_id=?",Long.class,id(record))).isZero();assertThat(jdbc.queryForObject("select count(*) from task_completion_receipts where record_id=?",Long.class,id(record))).isZero();}
+    private JsonNode complete(Actor actor,String task,CompleteTask command,UUID key,int expected)throws Exception{return json.readTree(mvc.perform(post("/api/v1/tasks/"+task+"/complete").header("Authorization",actor.bearer()).header("Idempotency-Key",key).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(command))).andExpect(status().is(expected)).andReturn().getResponse().getContentAsString()).get("data");}
+    private int completeStatus(Actor actor,String task,CompleteTask command,UUID key)throws Exception{return mvc.perform(post("/api/v1/tasks/"+task+"/complete").header("Authorization",actor.bearer()).header("Idempotency-Key",key).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(command))).andReturn().getResponse().getStatus();}
 
     @Test void assignedInboxAndTaskDetailAreScopedAndHideTechnicalTasksAndHiddenFields() throws Exception {
         var approver=actor("task.complete");var process=publishedProcess(Map.of("strategy","SPECIFIC_USER","specificUserId",approver.id().toString()),false);
@@ -46,7 +124,7 @@ class RecordDraftIntegrationTest {
             assertThat(taskList(approver,"ASSIGNED","no such record",200).get("totalElements").asLong()).isZero();
             var detail=taskDetail(approver,task.getId(),200);assertThat(detail.get("canClaim").asBoolean()).isFalse();
             assertThat(detail.get("view").get("data").get("amount").asString()).isEqualTo(completeData().get("amount"));
-            assertThat(detail.get("view").get("fieldAccess").get("budgetConfirmed").asString()).isEqualTo("READ_ONLY");
+            assertThat(detail.get("view").get("fieldAccess").get("budgetConfirmed").asString()).isEqualTo("EDITABLE");
             assertThat(detail.get("view").get("schema").get("properties").has("budgetCode")).isFalse();
             taskDetail(requester,task.getId(),403);taskDetail(approver,technical.getId(),404);
             var auditor=actor("record.read.all","audit.read");taskList(auditor,"ASSIGNED",null,403);taskDetail(auditor,task.getId(),403);

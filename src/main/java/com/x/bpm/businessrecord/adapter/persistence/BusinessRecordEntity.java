@@ -110,4 +110,9 @@ public class BusinessRecordEntity extends MutableEntity {
 
     @Column(name = "completed_at")
     private Instant completedAt;
+
+    /** Changes on every successful task transition, advancing revision/updatedAt even without a form patch. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "last_task_action_id", foreignKey = @ForeignKey(name = "fk_business_records_last_task_action"))
+    private com.x.bpm.task.adapter.persistence.TaskActionLogEntity lastTaskAction;
 }

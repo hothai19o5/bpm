@@ -91,8 +91,9 @@ public final class TaskInboxUseCase {
     private TaskDetail view(ActorContext actor,BusinessTask task) {
         var context=store.form(task);var readOnly=new LinkedHashMap<String,FormFieldAccess>();
         context.policy().access().forEach((id,access)->readOnly.put(id,access==FormFieldAccess.HIDDEN?access:FormFieldAccess.READ_ONLY));
-        return new TaskDetail(summary(task),task.recordStatus(),task.recordRevision(),forms.read(context.form(),context.data(),new FormFieldPolicy(readOnly)),
-                task.engine().assignee()==null&&candidate(actor,task));
+        boolean canComplete=assigned(actor,task);
+        return new TaskDetail(summary(task),task.recordStatus(),task.recordRevision(),forms.read(context.form(),context.data(),canComplete?context.policy():new FormFieldPolicy(readOnly)),
+                task.engine().assignee()==null&&candidate(actor,task),canComplete?context.actions():List.of());
     }
     public static TaskSummary summary(BusinessTask task){var engine=task.engine();return new TaskSummary(engine.taskId(),task.recordId(),task.businessKey(),task.recordTitle(),engine.name(),engine.taskDefinitionKey(),engine.assignee(),engine.createdAt());}
     private static void require(ActorContext actor,String permission){if(!actor.hasPermission(permission))throw forbidden();}

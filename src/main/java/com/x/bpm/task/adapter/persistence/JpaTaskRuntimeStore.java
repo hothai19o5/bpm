@@ -48,6 +48,7 @@ public class JpaTaskRuntimeStore implements TaskRuntimeStore {
         Map<?,?> step=raw instanceof Map<?,?> value?value:Map.of();Map<?,?> fields=step.get("fieldAccess") instanceof Map<?,?> access?access:Map.of();
         var policy=new LinkedHashMap<String,FormFieldAccess>();fields.forEach((id,access)->policy.put((String)id,FormFieldAccess.valueOf((String)access)));
         var form=new FormVersion(version.getId(),version.getFormDefinition().getId(),version.getVersionNumber(),FormVersion.Status.valueOf(version.getStatus().name()),version.getSchemaJson(),version.getUiSchemaJson(),version.getCreatedBy().getId(),version.getPublishedBy()==null?null:version.getPublishedBy().getId(),version.getPublishedAt(),version.getRevision());
-        return new TaskFormContext(form,new FormFieldPolicy(policy),record.getFormData());
+        var actions=step.get("actions") instanceof List<?> values?values.stream().map(value->FormAction.valueOf((String)value)).toList():List.<FormAction>of();
+        return new TaskFormContext(form,new FormFieldPolicy(policy),record.getFormData(),actions);
     }
 }

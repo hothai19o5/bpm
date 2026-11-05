@@ -37,6 +37,7 @@ variables:
   recordRevision: "0"
   recordOperationKey: ""
   taskId: ""
+  taskOperationKey: ""
 auth:
   type: bearer
   credentials:
