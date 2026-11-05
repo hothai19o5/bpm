@@ -8,4 +8,4 @@ import java.util.UUID;
 /** Resource-authorized response with server-filtered form data. */
 public record RecordView(UUID id,String businessKey,UUID processDefinitionId,UUID processVersionId,UUID formVersionId,
         UUID requesterId,String title,BusinessRecord.Status status,long revision,Instant updatedAt,FormDataView view,
-        List<FormAction> actions,boolean canDelete) { }
+        List<FormAction> actions,boolean canDelete,String submitBlockedReason) { }

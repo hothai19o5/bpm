@@ -15,7 +15,8 @@ public class BpmConditions {
     public boolean test(DelegateExecution execution,String token){
         try {
             Map<?,?> condition=json.readValue(new String(Base64.getUrlDecoder().decode(token),StandardCharsets.UTF_8),Map.class);
-            Object values=execution.getVariable("bpmFormData");if(!(values instanceof Map<?,?> data)||!data.containsKey(condition.get("field")))return false;
+            Object values=execution.getVariable("bpmFormData");if(values instanceof String text)values=json.readValue(text,Map.class);
+            if(!(values instanceof Map<?,?> data)||!data.containsKey(condition.get("field")))return false;
             Object left=data.get(condition.get("field")),right=condition.get("value");if(left==null||right==null)return false;
             int comparison=switch(String.valueOf(condition.get("type"))){
                 case "INTEGER","DECIMAL","MONEY_VND" -> new BigDecimal(left.toString()).compareTo(new BigDecimal(right.toString()));

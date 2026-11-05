@@ -17,6 +17,11 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Transient;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
+import jakarta.persistence.PostUpdate;
+import jakarta.persistence.PreUpdate;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -42,6 +47,25 @@ import org.hibernate.type.SqlTypes;
                 @Index(name = "ix_business_records_5", columnList = "requester_department_id")})
 @Check(constraints = "(status = 'DRAFT' and engine_instance_id is null and submitted_at is null and completed_at is null) or (status in ('IN_PROGRESS', 'CHANGES_REQUESTED') and engine_instance_id is not null and submitted_at is not null and requester_department_id is not null and completed_at is null) or (status in ('COMPLETED', 'REJECTED') and engine_instance_id is not null and submitted_at is not null and requester_department_id is not null and completed_at is not null and completed_at >= submitted_at)")
 public class BusinessRecordEntity extends MutableEntity {
+    @Transient @Getter(lombok.AccessLevel.NONE) @Setter(lombok.AccessLevel.NONE)
+    private Pins pinned;
+    @Transient @Getter(lombok.AccessLevel.NONE) @Setter(lombok.AccessLevel.NONE)
+    private String pinnedInstance;
+    @Transient @Getter(lombok.AccessLevel.NONE) @Setter(lombok.AccessLevel.NONE)
+    private java.util.UUID pinnedDepartment;
+    @Transient @Getter(lombok.AccessLevel.NONE) @Setter(lombok.AccessLevel.NONE)
+    private Instant pinnedSubmittedAt;
+    @PostLoad @PostPersist @PostUpdate
+    void snapshotPins(){pinned=pins();pinnedInstance=engineInstanceId;pinnedDepartment=requesterDepartment==null?null:requesterDepartment.getId();pinnedSubmittedAt=submittedAt;}
+    @PreUpdate
+    void requirePinsImmutable(){
+        if(pinned!=null&&!pinned.equals(pins()))throw new IllegalStateException("Record identity and version pins are immutable");
+        if(pinnedInstance!=null&&(!pinnedInstance.equals(engineInstanceId)||status==Status.DRAFT||!java.util.Objects.equals(pinnedSubmittedAt,submittedAt)
+                ||!java.util.Objects.equals(pinnedDepartment,requesterDepartment==null?null:requesterDepartment.getId())))
+            throw new IllegalStateException("Submitted record engine and requester department are immutable");
+    }
+    private Pins pins(){return new Pins(businessKey,processDefinition.getId(),processVersion.getId(),formVersion.getId(),requester.getId());}
+    private record Pins(String key,java.util.UUID definitionId,java.util.UUID processVersionId,java.util.UUID formVersionId,java.util.UUID requesterId) { }
     @Column(name = "business_key", nullable = false, length = 100)
     private String businessKey;
 

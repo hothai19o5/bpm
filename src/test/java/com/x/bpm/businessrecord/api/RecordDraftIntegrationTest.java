@@ -29,6 +29,136 @@ class RecordDraftIntegrationTest {
     @Autowired AuthAccountPort accounts; @Autowired PasswordHashPort passwords;
     @Autowired RecordStore store; @Autowired RecordTransactionRunner transactions; @Autowired FormDataService forms;
     @Autowired EntityManager entities;
+    @Autowired RecordSubmissionStore submissions;
+    @Autowired com.x.bpm.task.assignment.application.AssignmentDirectoryPort directory;
+    @Autowired com.x.bpm.process.application.engine.ProcessEnginePort engine;
+    @Autowired RecordEngineData engineData;
+    @Autowired java.time.Clock clock;
+
+    @Test void concurrentSubmitRetriesCreateOnePinnedInstanceAndReceiptAndFreezeDepartment() throws Exception {
+        var process=publishedProcess();var requester=actor(REQUESTER);UUID department=department(requester);
+        var record=postRecord(requester,createBody(process,completeData()),200);UUID key=UUID.randomUUID();
+        var command=new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of()));
+        var barrier=new CyclicBarrier(2);
+        Callable<JsonNode> call=()->{barrier.await(30,TimeUnit.SECONDS);return submit(requester,record,command,key,200);};
+        JsonNode submitted;
+        try(var pool=Executors.newFixedThreadPool(2)){var a=pool.submit(call);var b=pool.submit(call);submitted=a.get(60,TimeUnit.SECONDS);assertThat(b.get(60,TimeUnit.SECONDS)).isEqualTo(submitted);}
+        assertThat(submitted.get("status").asString()).isEqualTo("IN_PROGRESS");assertThat(submitted.get("actions").isEmpty()).isTrue();
+        String instance=jdbc.queryForObject("select engine_instance_id from business_records where id=?",String.class,id(record));
+        assertThat(engine.findRunningInstance(instance).orElseThrow().definitionId()).isEqualTo(process.get("version").get("engineDefinitionId").asString());
+        assertThat(engine.findRunningInstancesByBusinessKey(record.get("businessKey").asString())).hasSize(1);
+        assertThat(jdbc.queryForObject("select requester_department_id from business_records where id=?",UUID.class,id(record))).isEqualTo(department);
+        assertThat(jdbc.queryForObject("select count(*) from record_submission_receipts where record_id=?",Long.class,id(record))).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from audit_events where action='RECORD_SUBMITTED' and entity_id=?",Long.class,id(record).toString())).isEqualTo(1);
+        submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of("amount","44"))),key,409);
+        submit(requester,record,command,UUID.randomUUID(),409);
+        var publisher=actor("process.publish");mvc.perform(post("/api/v1/process-definitions/"+process.get("definition").get("id").asString()+"/retire").header("Authorization",publisher.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",versionId(process),"expectedRevision",2)))).andExpect(status().isOk());
+        submit(requester,record,command,key,200);
+        UUID moved=UUID.randomUUID();jdbc.update("insert into departments(id,created_at,updated_at,revision,code,name,status) values(?,current_timestamp,current_timestamp,0,?,'Moved','ACTIVE')",moved,key());
+        jdbc.update("update department_members set department_id=? where user_id=?",moved,requester.id());
+        assertThat(jdbc.queryForObject("select requester_department_id from business_records where id=?",UUID.class,id(record))).isEqualTo(department);
+        mvc.perform(put(ROOT+"/"+id(record)+"/draft").header("Authorization",requester.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(new SaveRecordDraft(submitted.get("revision").asLong(),"No edit after submit",new FormDataPatch(Map.of()))))).andExpect(status().isConflict());
+    }
+
+    @Test void competingSubmitKeysAndReuseAcrossRecordsLeaveOnlyOneInstancePerOperation() throws Exception {
+        var process=publishedProcess();var requester=actor(REQUESTER);department(requester);
+        var record=postRecord(requester,createBody(process,completeData()),200);var command=new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of()));
+        var barrier=new CyclicBarrier(2);Callable<Integer> call=()->{barrier.await(30,TimeUnit.SECONDS);return mvc.perform(post(ROOT+"/"+id(record)+"/submit").header("Authorization",requester.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(command))).andReturn().getResponse().getStatus();};
+        try(var pool=Executors.newFixedThreadPool(2)){var a=pool.submit(call);var b=pool.submit(call);assertThat(List.of(a.get(60,TimeUnit.SECONDS),b.get(60,TimeUnit.SECONDS))).containsExactlyInAnyOrder(200,409);}
+        assertThat(engine.findRunningInstancesByBusinessKey(record.get("businessKey").asString())).hasSize(1);
+        var one=postRecord(requester,createBody(process,completeData()),200);var two=postRecord(requester,createBody(process,completeData()),200);
+        UUID shared=UUID.randomUUID();var race=new CyclicBarrier(2);
+        java.util.function.Function<JsonNode,Callable<Integer>> run=r->()->{race.await(30,TimeUnit.SECONDS);return mvc.perform(post(ROOT+"/"+id(r)+"/submit").header("Authorization",requester.bearer()).header("Idempotency-Key",shared).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(new SubmitRecord(0L,r.get("title").asString(),new FormDataPatch(Map.of()))))).andReturn().getResponse().getStatus();};
+        try(var pool=Executors.newFixedThreadPool(2)){var a=pool.submit(run.apply(one));var b=pool.submit(run.apply(two));assertThat(List.of(a.get(60,TimeUnit.SECONDS),b.get(60,TimeUnit.SECONDS))).containsExactlyInAnyOrder(200,409);}
+        assertThat(engine.findRunningInstancesByBusinessKey(one.get("businessKey").asString()).size()+engine.findRunningInstancesByBusinessKey(two.get("businessKey").asString()).size()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from record_submission_receipts where actor_id=? and request_key=?",Long.class,requester.id(),shared)).isEqualTo(1);
+    }
+
+    @Test void submitValidatesOwnerFieldsDepartmentAndCurrentVersionBeforeEngineAndAuditFailureRollsBack() throws Exception {
+        var process=publishedProcess();var requester=actor(REQUESTER);var record=postRecord(requester,createBody(process,Map.of()),200);
+        submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),422);
+        submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(completeData())),UUID.randomUUID(),422);
+        department(requester);
+        var forbidden=new LinkedHashMap<>(completeData());forbidden.put("budgetConfirmed",true);
+        submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(forbidden)),UUID.randomUUID(),403);
+        submit(actor(REQUESTER),record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(completeData())),UUID.randomUUID(),403);
+        var command=new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(completeData()));UUID key=UUID.randomUUID();
+        var failing=new SubmitRecordUseCase(store,submissions,transactions,()->new ActorContext(requester.id().toString(),true,Set.of(REQUESTER)),forms,directory,engine,engineData,(action,type,id,diff)->{throw new IllegalStateException("submit audit unavailable");},clock);
+        assertThatThrownBy(()->failing.submit(id(record),command,key)).isInstanceOf(IllegalStateException.class).hasMessage("submit audit unavailable");
+        assertThat(engine.findRunningInstancesByBusinessKey(record.get("businessKey").asString())).isEmpty();
+        assertThat(jdbc.queryForObject("select status from business_records where id=?",String.class,id(record))).isEqualTo("DRAFT");
+        assertThat(jdbc.queryForObject("select count(*) from business_records where id=? and engine_instance_id is null and submitted_at is null and requester_department_id is null and form_data='{}'::jsonb",Long.class,id(record))).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from record_submission_receipts where request_key=?",Long.class,key)).isZero();
+        submit(requester,record,command,key,200);
+        var retiredDraft=postRecord(requester,createBody(process,completeData()),200);var publisher=actor("process.publish");
+        mvc.perform(post("/api/v1/process-definitions/"+process.get("definition").get("id").asString()+"/retire").header("Authorization",publisher.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",versionId(process),"expectedRevision",2)))).andExpect(status().isOk());
+        submit(requester,retiredDraft,new SubmitRecord(0L,retiredDraft.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),409);
+        assertThat(engine.findRunningInstancesByBusinessKey(retiredDraft.get("businessKey").asString())).isEmpty();
+    }
+
+    @Test void submitUsesPinnedDefinitionIdAfterSelectingAnOlderBusinessVersion() throws Exception {
+        var v1=publishedProcess();var requester=actor(REQUESTER);department(requester);var record=postRecord(requester,createBody(v1,completeData()),200);
+        var admin=actor("process.design","process.publish");String definitionId=v1.get("definition").get("id").asString();
+        var draft=json.readTree(mvc.perform(post("/api/v1/process-definitions/"+definitionId+"/clone").header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",versionId(v1),"expectedRevision",2)))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("data");
+        var v2=json.readTree(mvc.perform(post("/api/v1/process-definitions/"+definitionId+"/publish").header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",versionId(draft),"expectedRevision",0)))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("data");
+        var command=new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of()));
+        submit(requester,record,command,UUID.randomUUID(),409);
+        mvc.perform(post("/api/v1/process-definitions/"+definitionId+"/activate").header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",versionId(v1),"expectedRevision",2)))).andExpect(status().isOk());
+        submit(requester,record,command,UUID.randomUUID(),200);
+        String instance=jdbc.queryForObject("select engine_instance_id from business_records where id=?",String.class,id(record));
+        assertThat(engine.findRunningInstance(instance).orElseThrow().definitionId()).isEqualTo(v1.get("version").get("engineDefinitionId").asString()).isNotEqualTo(v2.get("version").get("engineDefinitionId").asString());
+    }
+
+    @Test void engineFailureAfterCreatingInstanceRollsBackPreparedDataAndAllowsSameKeyRetry() throws Exception {
+        var process=publishedProcess();var requester=actor(REQUESTER);department(requester);var record=postRecord(requester,createBody(process,Map.of()),200);
+        var faulty=org.mockito.Mockito.mock(com.x.bpm.process.application.engine.ProcessEnginePort.class,org.mockito.AdditionalAnswers.delegatesTo(engine));
+        org.mockito.Mockito.doAnswer(invocation->{engine.start(invocation.getArgument(0),invocation.getArgument(1),invocation.getArgument(2));throw new IllegalStateException("engine fault after start");})
+                .when(faulty).start(org.mockito.ArgumentMatchers.anyString(),org.mockito.ArgumentMatchers.anyString(),org.mockito.ArgumentMatchers.anyMap());
+        var useCase=new SubmitRecordUseCase(store,submissions,transactions,()->new ActorContext(requester.id().toString(),true,Set.of(REQUESTER)),forms,directory,faulty,engineData,(action,type,id,diff)->{},clock);
+        UUID key=UUID.randomUUID();var command=new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(completeData()));
+        assertThatThrownBy(()->useCase.submit(id(record),command,key)).isInstanceOf(IllegalStateException.class).hasMessage("engine fault after start");
+        assertThat(jdbc.queryForObject("select count(*) from flowable.act_hi_procinst where business_key_=?",Long.class,record.get("businessKey").asString())).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from business_records where id=? and status='DRAFT' and engine_instance_id is null and submitted_at is null and requester_department_id is null and form_data='{}'::jsonb",Long.class,id(record))).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from record_submission_receipts where request_key=?",Long.class,key)).isZero();submit(requester,record,command,key,200);
+    }
+
+    @Test @SuppressWarnings("unchecked") void scalarJsonVariablesDriveExactThresholdAndImmediateCompletion() throws Exception {
+        var process=publishedProcess();var admin=actor("process.design","process.publish");String definitionId=process.get("definition").get("id").asString();
+        var draft=json.readTree(mvc.perform(post("/api/v1/process-definitions/"+definitionId+"/clone").header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",versionId(process),"expectedRevision",2)))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("data");
+        var condition=Map.of("field","amount","operator","GE","value","50000000");
+        String extra="<b:exclusiveGateway id=\"route\" default=\"skip\"/><b:sequenceFlow id=\"high\" sourceRef=\"route\" targetRef=\"review\"><b:extensionElements><bpm:configuration>"+json.writeValueAsString(Map.of("step",Map.of("condition",condition)))+"</bpm:configuration></b:extensionElements></b:sequenceFlow><b:sequenceFlow id=\"skip\" sourceRef=\"route\" targetRef=\"end\"/>";
+        String di="<d:BPMNShape id=\"route_di\" bpmnElement=\"route\" isMarkerVisible=\"true\"><dc:Bounds x=\"50\" y=\"100\" width=\"50\" height=\"50\"/></d:BPMNShape>";
+        for(String flow:List.of("high","skip"))di+="<d:BPMNEdge id=\""+flow+"_di\" bpmnElement=\""+flow+"\"><di:waypoint x=\"100\" y=\"100\"/><di:waypoint x=\"250\" y=\"100\"/></d:BPMNEdge>";
+        String xml=draft.get("version").get("bpmnXml").asString().replace("sourceRef=\"start\" targetRef=\"review\"","sourceRef=\"start\" targetRef=\"route\"").replace("</b:process>",extra+"</b:process>").replace("</d:BPMNPlane>",di+"</d:BPMNPlane>");
+        var steps=new LinkedHashMap<String,Object>(json.convertValue(draft.get("version").get("stepConfig"),Map.class));steps.put("high",Map.of("condition",condition));steps.put("skip",Map.of("default",true));
+        var model=new ProcessModelInput(xml,steps,json.convertValue(draft.get("version").get("formBindings"),Map.class));
+        mvc.perform(put("/api/v1/process-definitions/"+definitionId+"/draft").header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(new SaveProcessDraft(UUID.fromString(versionId(draft)),0L,model)))).andExpect(status().isOk());
+        var configured=json.readTree(mvc.perform(post("/api/v1/process-definitions/"+definitionId+"/publish").header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",versionId(draft),"expectedRevision",1)))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("data");
+        var requester=actor(REQUESTER);department(requester);
+        for(String amount:List.of("49999999","50000000","50000001")) {
+            var values=new LinkedHashMap<>(completeData());values.put("amount",amount);var record=postRecord(requester,createBody(configured,values),200);UUID key=UUID.randomUUID();
+            var command=new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of()));var submitted=submit(requester,record,command,key,200);
+            assertThat(submitted.get("status").asString()).isEqualTo(amount.equals("49999999")?"COMPLETED":"IN_PROGRESS");
+            submit(requester,record,command,key,200);
+            assertThat(jdbc.queryForObject("select count(*) from flowable.act_hi_procinst where business_key_=?",Long.class,record.get("businessKey").asString())).isEqualTo(1);
+        }
+    }
+
+    private Map<String,Object> completeData(){return Map.of("itemName","Laptop","quantity",1,"amount","49999999","reason","Work");}
+    @Test void submitPermissionIsIndependentOfDraftSaveAndRevocationAppliesImmediately() throws Exception {
+        var process=publishedProcess();var requester=actor("record.create","process.start","record.read.own");department(requester);
+        var record=postRecord(requester,createBody(process,completeData()),200);
+        assertThat(record.get("actions").toString()).isEqualTo("[\"SUBMIT\"]");
+        assertThat(record.get("view").get("fieldAccess").get("amount").asString()).isEqualTo("EDITABLE");
+        mvc.perform(put(ROOT+"/"+id(record)+"/draft").header("Authorization",requester.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(new SaveRecordDraft(0L,record.get("title").asString(),new FormDataPatch(Map.of()))))).andExpect(status().isForbidden());
+        var command=new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of()));submit(requester,record,command,UUID.randomUUID(),200);
+        var revoked=actor(REQUESTER);department(revoked);var draft=postRecord(revoked,createBody(process,completeData()),200);
+        jdbc.update("delete from role_permissions where role_id in (select role_id from user_roles where user_id=?) and permission_id=(select id from permissions where code='process.start')",revoked.id());
+        submit(revoked,draft,new SubmitRecord(0L,draft.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),403);
+        assertThat(engine.findRunningInstancesByBusinessKey(draft.get("businessKey").asString())).isEmpty();
+    }
+    private UUID department(Actor actor){UUID department=UUID.randomUUID();jdbc.update("insert into departments(id,created_at,updated_at,revision,code,name,status) values(?,current_timestamp,current_timestamp,0,?,'Requester department','ACTIVE')",department,key());jdbc.update("insert into department_members(id,created_at,updated_at,revision,user_id,department_id,is_primary) values(?,current_timestamp,current_timestamp,0,?,?,true)",UUID.randomUUID(),actor.id(),department);return department;}
+    private JsonNode submit(Actor actor,JsonNode record,SubmitRecord command,UUID key,int expected) throws Exception{return json.readTree(mvc.perform(post(ROOT+"/"+id(record)+"/submit").header("Authorization",actor.bearer()).header("Idempotency-Key",key).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(command))).andExpect(status().is(expected)).andReturn().getResponse().getContentAsString()).get("data");}
 
     @Test void createsFilteredIncompleteDraftWithServerIdentityAndNoEngineThenRejectsTampering() throws Exception {
         var process=publishedProcess();var requester=actor(REQUESTER);

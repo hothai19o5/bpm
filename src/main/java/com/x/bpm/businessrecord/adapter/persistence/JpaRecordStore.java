@@ -44,7 +44,12 @@ public class JpaRecordStore implements RecordStore {
         var access=new LinkedHashMap<String,FormFieldAccess>();config.fieldAccess().forEach((field,value)->access.put(field,FormFieldAccess.valueOf(value)));
         var formVersion=new FormVersion(form.getId(),form.getFormDefinition().getId(),form.getVersionNumber(),FormVersion.Status.valueOf(form.getStatus().name()),
                 form.getSchemaJson(),form.getUiSchemaJson(),form.getCreatedBy().getId(),form.getPublishedBy()==null?null:form.getPublishedBy().getId(),form.getPublishedAt(),form.getRevision());
-        return new RecordTemplate(version.getProcessDefinition().getId(),version.getId(),version.getProcessDefinition().getName(),formVersion,new FormFieldPolicy(access));
+        return new RecordTemplate(version.getProcessDefinition().getId(),version.getId(),version.getProcessDefinition().getName(),formVersion,new FormFieldPolicy(access),version.getEngineDefinitionId());
+    }
+    @Transactional(readOnly=true)
+    public boolean isStartable(BusinessRecord record) {
+        return entities.createQuery("select count(v) from ProcessVersionEntity v join v.processDefinition d where v.id=:version and d.id=:definition and d.activeProcessVersion=v and d.status='ACTIVE' and v.status='PUBLISHED' and v.recordStartReady=true and v.engineDefinitionId is not null",Long.class)
+                .setParameter("version",record.processVersionId()).setParameter("definition",record.processDefinitionId()).getSingleResult()>0;
     }
     public Optional<BusinessRecord> find(UUID id,boolean lock) {
         return Optional.ofNullable(lock?entities.find(BusinessRecordEntity.class,id,LockModeType.PESSIMISTIC_WRITE):entities.find(BusinessRecordEntity.class,id)).map(this::record);

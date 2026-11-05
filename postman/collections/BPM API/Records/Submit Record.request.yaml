@@ -1,0 +1,17 @@
+$kind: http-request
+order: 7000
+method: POST
+url: '{{baseUrl}}/api/v1/records/{{recordId}}/submit'
+headers:
+  - key: Content-Type
+    value: application/json
+  - key: Idempotency-Key
+    value: '{{recordOperationKey}}'
+body:
+  type: json
+  content: |-
+    {
+      "expectedRevision": {{recordRevision}},
+      "title": "Hồ sơ nháp đã sửa",
+      "patch": {"values": {}, "removeFields": []}
+    }

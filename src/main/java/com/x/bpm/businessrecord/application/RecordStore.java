@@ -5,6 +5,7 @@ import java.util.*;
 public interface RecordStore {
     RecordTemplate startTemplate(UUID definitionId,UUID versionId);
     RecordTemplate pinnedTemplate(BusinessRecord record);
+    boolean isStartable(BusinessRecord record);
     Optional<BusinessRecord> find(UUID id,boolean lock);
     BusinessRecord create(RecordTemplate template,UUID requesterId,String title,Map<String,Object> data);
     BusinessRecord save(UUID id,String title,Map<String,Object> data);

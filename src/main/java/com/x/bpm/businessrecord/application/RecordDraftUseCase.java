@@ -85,17 +85,7 @@ public final class RecordDraftUseCase {
         RevisionGuard.requireMatch(revision,record.revision());return record;
     }
     private RecordView view(BusinessRecord r,RecordTemplate t,ActorContext actor) {
-        boolean own=actor.userId().equals(r.requesterId().toString());
-        boolean edit=own&&r.status()==BusinessRecord.Status.DRAFT&&actor.hasPermission(PermissionCatalog.RECORD_UPDATE_DRAFT);
-        FormFieldPolicy fields=t.requesterPolicy();
-        if(!own&&actor.hasPermission(PermissionCatalog.RECORD_READ_ALL)) {
-            var access=new LinkedHashMap<String,FormFieldAccess>();
-            ((Map<?,?>)t.form().schema().get("properties")).keySet().forEach(field->access.put(field.toString(),FormFieldAccess.READ_ONLY));fields=new FormFieldPolicy(access);
-        } else if(!edit) {
-            var access=new LinkedHashMap<String,FormFieldAccess>();fields.access().forEach((field,value)->access.put(field,value==FormFieldAccess.EDITABLE?FormFieldAccess.READ_ONLY:value));fields=new FormFieldPolicy(access);
-        }
-        return new RecordView(r.id(),r.businessKey(),r.processDefinitionId(),r.processVersionId(),r.formVersionId(),r.requesterId(),r.title(),r.status(),r.revision(),r.updatedAt(),forms.read(t.form(),r.data(),fields),
-                edit?List.of(FormAction.SAVE_DRAFT):List.of(),own&&r.status()==BusinessRecord.Status.DRAFT&&actor.hasPermission(PermissionCatalog.RECORD_DELETE_DRAFT));
+        return RecordViews.render(forms,r,t,actor,store.isStartable(r));
     }
     private ActorContext requireCreate() {
         var actor=actors.requireCurrentActor();policy.requireGranted(policy.requirePermission(actor,PermissionCatalog.RECORD_CREATE));
@@ -105,7 +95,7 @@ public final class RecordDraftUseCase {
     private static ResourceAccessContext access(BusinessRecord r){return new ResourceAccessContext(r.requesterId().toString(),null,null,Set.of(),Set.of(),r.status()==BusinessRecord.Status.DRAFT);}
     /** Ownership/storage linking will be supplied at P6; opaque UUIDs never count as uploaded files. */
     @SuppressWarnings("unchecked")
-    private static void requireAttachmentsLinked(RecordTemplate t,Map<String,Object> data) {
+    static void requireAttachmentsLinked(RecordTemplate t,Map<String,Object> data) {
         var fields=(Map<String,Map<String,Object>>)(Map<?,?>)t.form().schema().get("properties");
         for(var entry:fields.entrySet())if("ATTACHMENT".equals(entry.getValue().get("x-field-type"))&&data.get(entry.getKey()) instanceof List<?> ids&&!ids.isEmpty())
             throw new ApplicationException(ErrorCode.VALIDATION_FAILED,"Tệp chưa được liên kết với hồ sơ.",List.of(new ValidationIssue(entry.getKey(),"Chỉ nhận tệp đã được tải lên và liên kết qua dịch vụ tệp.",null)));
