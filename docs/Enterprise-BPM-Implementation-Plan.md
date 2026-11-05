@@ -320,6 +320,8 @@ chí kiểm chứng được giữ tại [hướng dẫn P1.6](P1.6-Verification
 
 **Cập nhật P5.2 ngày 05/11/2026:** P5.2 đã có [submit nguyên tử và chống lặp](P5.2-Atomic-Submission.md): start đúng engine definition đã pin, snapshot phòng ban, receipt/record/engine/audit chung transaction và UI retry cùng key sau mất response. **Full backend 319 đạt + 1 skipped restart opt-in** (`target/P52-full-3.log`, `target/p52-surefire-reports`); frontend **119 đạt** (78 form + 10 model/attempt + 30 Chrome regression + 1 Chrome/API thật), build/lint đạt (warning nền cũ); Postman 59/1/62 file không error/warning. Smoke `logs/P52-real-chrome.log`, `target/P52-real-server.log` đã đạt và server đã dừng. Assignment/inbox/complete tiếp tục P5.3–P5.8; chưa UAT.
 
+**Cập nhật P5.3 ngày 05/11/2026:** P5.3: [assignment runtime và ngoại lệ](P5.3-Runtime-Assignment.md), 4 strategy từ frozen config/directory, giữ phòng ban submit, resolve người tại lúc tạo task, không tự chuyển task cũ; task lỗi vẫn chờ, audit SYSTEM và support queue task.reassign. **Backend 324 đạt + 1 skipped restart opt-in; frontend 121 đạt** (78 form + 10 model + 32 Chrome regression + 1 Chrome/API thật), build/lint đạt (warning nền cũ); Postman 60/1/63 file sạch. Log `target/P53-full-1.log`, `logs/P53-records-exceptions-final.log`, `logs/P53-real-chrome.log`, `target/P53-real-server.log`; smoke đã dừng. Inbox/claim/complete tiếp tục P5.4–P5.8; chưa UAT.
+
 **Điều kiện chuyển phase:** Luồng mua sắm chạy được từ giao diện qua đủ nhánh đã thống nhất; authorization, idempotency và rollback đã có kiểm thử ngay trong runtime.
 
 ## 10. Phase 6 — Tệp, cộng tác, tiến trình và màn chi tiết hoàn chỉnh

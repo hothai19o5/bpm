@@ -34,6 +34,95 @@ class RecordDraftIntegrationTest {
     @Autowired com.x.bpm.process.application.engine.ProcessEnginePort engine;
     @Autowired RecordEngineData engineData;
     @Autowired java.time.Clock clock;
+    @Autowired org.flowable.engine.TaskService taskService;
+
+    @Test void runtimeAssignmentUsesPinnedDepartmentAndCurrentManagerOnlyForNewTasks() throws Exception {
+        var process=publishedProcess(Map.of("strategy","REQUESTER_MANAGER"),true);
+        var requester=actor(REQUESTER);UUID original=department(requester);
+        var manager=actor("task.complete");member(manager,original);jdbc.update("update departments set manager_user_id=? where id=?",manager.id(),original);
+        var record=postRecord(requester,createBody(process,completeData()),200);
+        submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);
+        var first=activeTask(record);assertThat(first.getAssignee()).isEqualTo(manager.id().toString());
+        var replacement=actor("task.complete");member(replacement,original);jdbc.update("update departments set manager_user_id=? where id=?",replacement.id(),original);
+        UUID moved=UUID.randomUUID();jdbc.update("insert into departments(id,created_at,updated_at,revision,code,name,status) values(?,current_timestamp,current_timestamp,0,?,'Moved runtime','ACTIVE')",moved,key());
+        jdbc.update("update department_members set department_id=? where user_id=?",moved,requester.id());
+        assertThat(activeTask(record).getAssignee()).isEqualTo(manager.id().toString());
+        taskService.complete(first.getId(),Map.of("bpmOutcome","APPROVE"));
+        var second=activeTask(record);assertThat(second.getTaskDefinitionKey()).isEqualTo("review2");assertThat(second.getAssignee()).isEqualTo(replacement.id().toString());
+        assertThat(jdbc.queryForObject("select requester_department_id from business_records where id=?",UUID.class,id(record))).isEqualTo(original);
+        assertThat(jdbc.queryForObject("select count(*) from audit_events where entity_type='ENGINE_TASK' and entity_id in (?,?) and source='SYSTEM' and actor_id is null and action='TASK_ASSIGNED'",Long.class,first.getId(),second.getId())).isEqualTo(2);
+    }
+
+    @Test void runtimeSpecificDepartmentAndRoleAssignmentsStayInsideConfiguredScope() throws Exception {
+        var approver=actor("task.claim","task.complete");UUID scope=department(approver);
+        var outsider=actor("task.claim","task.complete");department(outsider);
+        UUID role=jdbc.queryForObject("select role_id from user_roles where user_id=?",UUID.class,approver.id());
+        for(var assignment:List.of(Map.of("strategy","SPECIFIC_USER","specificUserId",approver.id().toString()),
+                Map.of("strategy","DEPARTMENT","departmentId",scope.toString()),
+                Map.of("strategy","ROLE","departmentId",scope.toString(),"roleId",role.toString()))) {
+            var process=publishedProcess(assignment,false);var requester=actor(REQUESTER);department(requester);
+            var record=postRecord(requester,createBody(process,completeData()),200);
+            submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);
+            var task=activeTask(record);var links=taskService.getIdentityLinksForTask(task.getId());
+            if(assignment.get("strategy").equals("SPECIFIC_USER")){assertThat(task.getAssignee()).isEqualTo(approver.id().toString());assertThat(links.stream().filter(l->"candidate".equals(l.getType()))).isEmpty();}
+            else {assertThat(task.getAssignee()).isNull();assertThat(links.stream().filter(l->"candidate".equals(l.getType())).map(l->l.getGroupId()).toList())
+                    .containsExactly("bpm:department:"+scope+(assignment.get("strategy").equals("ROLE")?":role:"+role:""));
+                assertThat(links.stream().filter(l->"candidate".equals(l.getType())).map(l->l.getUserId()).toList()).containsOnlyNulls();}
+            assertThat(jdbc.queryForObject("select count(*) from assignment_exceptions where record_id=?",Long.class,id(record))).isZero();
+        }
+    }
+
+    @Test void assignmentFailuresRemainWaitingWithSystemAuditAndProtectedSupportMetadata() throws Exception {
+        var process=publishedProcess();var requester=actor(REQUESTER);UUID scope=department(requester);
+        var missing=postRecord(requester,createBody(process,completeData()),200);
+        submit(requester,missing,new SubmitRecord(0L,missing.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);
+        assertAssignmentFailure(missing,"MANAGER_MISSING");
+        jdbc.update("update departments set manager_user_id=? where id=?",requester.id(),scope);
+        // Self approval remains forbidden even when the requester otherwise has complete permission.
+        UUID role=jdbc.queryForObject("select role_id from user_roles where user_id=?",UUID.class,requester.id());
+        jdbc.update("insert into role_permissions(id,created_at,updated_at,revision,role_id,permission_id) values(?,current_timestamp,current_timestamp,0,?,?)",UUID.randomUUID(),role,jdbc.queryForObject("select id from permissions where code='task.complete'",UUID.class));
+        var self=postRecord(requester,createBody(process,completeData()),200);
+        submit(requester,self,new SubmitRecord(0L,self.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);assertAssignmentFailure(self,"SELF_APPROVAL");
+        var support=actor("task.reassign");String payload=mvc.perform(get("/api/v1/tasks/assignment-exceptions?page=0&size=1").header("Authorization",support.bearer())).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(json.readTree(payload).get("data").get("items").size()).isEqualTo(1);assertThat(json.readTree(payload).get("data").get("totalElements").asLong()).isGreaterThanOrEqualTo(2);
+        assertThat(payload).doesNotContain("formData","itemName","requesterId");
+        mvc.perform(get("/api/v1/tasks/assignment-exceptions").header("Authorization",requester.bearer())).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/tasks/assignment-exceptions?size=101").header("Authorization",support.bearer())).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/v1/tasks/assignment-exceptions")).andExpect(status().isUnauthorized());
+    }
+
+    @Test void runtimeInactiveUserAndEmptyOrInactiveQueuesDoNotBecomeCompanyWide() throws Exception {
+        var approver=actor("task.claim","task.complete");UUID scope=department(approver);
+        var cases=List.of(Map.of("strategy","SPECIFIC_USER","specificUserId",approver.id().toString()),Map.of("strategy","DEPARTMENT","departmentId",scope.toString()));
+        for(var assignment:cases) {
+            var process=publishedProcess(assignment,false);jdbc.update("update users set status='INACTIVE' where id=?",approver.id());
+            var requester=actor(REQUESTER);department(requester);var record=postRecord(requester,createBody(process,completeData()),200);
+            submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);
+            assertAssignmentFailure(record,assignment.get("strategy").equals("SPECIFIC_USER")?"USER_INACTIVE":"EMPTY_CANDIDATE_GROUP");
+            jdbc.update("update users set status='ACTIVE' where id=?",approver.id());
+        }
+        var process=publishedProcess(Map.of("strategy","DEPARTMENT","departmentId",scope.toString()),false);jdbc.update("update departments set status='INACTIVE' where id=?",scope);
+        var requester=actor(REQUESTER);department(requester);var record=postRecord(requester,createBody(process,completeData()),200);
+        submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);assertAssignmentFailure(record,"DEPARTMENT_INACTIVE");
+    }
+
+    @Test void assignmentJournalFaultRollsBackEngineRecordReceiptAndCanRetry() throws Exception {
+        var process=publishedProcess();var requester=actor(REQUESTER);department(requester);var record=postRecord(requester,createBody(process,completeData()),200);
+        var command=new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of()));UUID operation=UUID.randomUUID();
+        jdbc.execute("alter table audit_events add constraint p53_assignment_fault check (action <> 'TASK_ASSIGNMENT_FAILED') not valid");
+        try {submit(requester,record,command,operation,500);} finally {jdbc.execute("alter table audit_events drop constraint p53_assignment_fault");}
+        assertThat(jdbc.queryForObject("select engine_instance_id from business_records where id=?",String.class,id(record))).isNull();
+        assertThat(engine.findRunningInstancesByBusinessKey(record.get("businessKey").asString())).isEmpty();
+        assertThat(jdbc.queryForObject("select count(*) from assignment_exceptions where record_id=?",Long.class,id(record))).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from record_submission_receipts where record_id=?",Long.class,id(record))).isZero();
+        submit(requester,record,command,operation,200);assertAssignmentFailure(record,"MANAGER_MISSING");
+    }
+
+    private void member(Actor user,UUID scope){jdbc.update("insert into department_members(id,created_at,updated_at,revision,user_id,department_id,is_primary) values(?,current_timestamp,current_timestamp,0,?,?,true)",UUID.randomUUID(),user.id(),scope);}
+    private org.flowable.task.api.Task activeTask(JsonNode record){return taskService.createTaskQuery().processInstanceId(jdbc.queryForObject("select engine_instance_id from business_records where id=?",String.class,id(record))).active().singleResult();}
+    private void assertAssignmentFailure(JsonNode record,String reason){var task=activeTask(record);assertThat(task).isNotNull();assertThat(task.getAssignee()).isNull();assertThat(taskService.getIdentityLinksForTask(task.getId()).stream().filter(l->"candidate".equals(l.getType()))).isEmpty();
+        assertThat(jdbc.queryForObject("select reason_code from assignment_exceptions where engine_task_id=?",String.class,task.getId())).isEqualTo(reason);
+        assertThat(jdbc.queryForObject("select count(*) from audit_events where entity_id=? and action='TASK_ASSIGNMENT_FAILED' and source='SYSTEM' and actor_id is null",Long.class,task.getId())).isEqualTo(1);}
 
     @Test void concurrentSubmitRetriesCreateOnePinnedInstanceAndReceiptAndFreezeDepartment() throws Exception {
         var process=publishedProcess();var requester=actor(REQUESTER);UUID department=department(requester);
@@ -250,8 +339,9 @@ class RecordDraftIntegrationTest {
     private UUID id(JsonNode record){return UUID.fromString(record.get("id").asString());}
     private String versionId(JsonNode process){return process.get("version").get("metadata").get("id").asString();}
     private String key(){return "p51-"+UUID.randomUUID();}
+    private JsonNode publishedProcess() throws Exception { return publishedProcess(Map.of("strategy","REQUESTER_MANAGER"),false); }
     @SuppressWarnings("unchecked")
-    private JsonNode publishedProcess() throws Exception {
+    private JsonNode publishedProcess(Map<String,String> assignment,boolean sequential) throws Exception {
         var admin=actor("process.design","process.publish","form.design","form.publish");
         Map<String,Object> formBody;try(var input=getClass().getResourceAsStream("/forms/purchase-request.v1.json")){formBody=json.readValue(input,Map.class);}formBody.put("key",key());
         var form=json.readTree(mvc.perform(post("/api/v1/form-definitions").header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(formBody))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("data");
@@ -259,10 +349,18 @@ class RecordDraftIntegrationTest {
         mvc.perform(post("/api/v1/form-definitions/"+form.get("definition").get("id").asString()+"/publish").header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",formId,"expectedRevision",0)))).andExpect(status().isOk());
         String processKey=key();var process=json.readTree(mvc.perform(post("/api/v1/process-definitions").header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("key",processKey,"name","Record test")))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("data");
         var entry=Map.<String,Object>of("fieldAccess",Map.of("itemName","EDITABLE","quantity","EDITABLE","amount","EDITABLE","reason","EDITABLE","proposalAttachments","EDITABLE","budgetCode","READ_ONLY"));
-        var review=Map.<String,Object>of("assignment",Map.of("strategy","REQUESTER_MANAGER"),"actions",List.of("APPROVE"));
+        var review=Map.<String,Object>of("assignment",assignment,"actions",List.of("APPROVE"));
         String xml;try(var input=getClass().getResourceAsStream("/processes/p45-authoring.xml")){xml=new String(input.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);}
         xml=xml.formatted(json.writeValueAsString(Map.of("step",review,"formVersionId",formId))).replace("\"purchase\"","\""+processKey+"\"").replace("<b:startEvent id=\"start\"/>","<b:startEvent id=\"start\"><b:extensionElements><bpm:configuration>"+json.writeValueAsString(Map.of("step",entry,"formVersionId",formId))+"</bpm:configuration></b:extensionElements></b:startEvent>");
-        var model=new ProcessModelInput(xml,Map.of("start",entry,"review",review,"f2",Map.of("outcome","APPROVE")),Map.of("start",Map.of("formVersionId",formId),"review",Map.of("formVersionId",formId)));
+        var steps=new LinkedHashMap<String,Object>(Map.of("start",entry,"review",review,"f2",Map.of("outcome","APPROVE")));
+        var bindings=new LinkedHashMap<String,Object>(Map.of("start",Map.of("formVersionId",formId),"review",Map.of("formVersionId",formId)));
+        if(sequential){String metadata=json.writeValueAsString(Map.of("step",review,"formVersionId",formId));
+            xml=xml.replace("<b:endEvent id=\"end\"/>","<b:userTask id=\"review2\"><b:extensionElements><bpm:configuration>"+metadata+"</bpm:configuration></b:extensionElements></b:userTask><b:endEvent id=\"end\"/>")
+                    .replace("sourceRef=\"review\" targetRef=\"end\"","sourceRef=\"review\" targetRef=\"review2\"")
+                    .replace("</b:process>","<b:sequenceFlow id=\"f3\" sourceRef=\"review2\" targetRef=\"end\"><b:extensionElements><bpm:configuration>{\"step\":{\"outcome\":\"APPROVE\"}}</bpm:configuration></b:extensionElements></b:sequenceFlow></b:process>")
+                    .replace("<d:BPMNEdge id=\"e1\"","<d:BPMNShape id=\"s4\" bpmnElement=\"review2\"><dc:Bounds x=\"200\" y=\"100\" width=\"100\" height=\"80\"/></d:BPMNShape><d:BPMNEdge id=\"e3\" bpmnElement=\"f3\"><di:waypoint x=\"300\" y=\"140\"/><di:waypoint x=\"250\" y=\"18\"/></d:BPMNEdge><d:BPMNEdge id=\"e1\"");
+            steps.put("review2",review);steps.put("f3",Map.of("outcome","APPROVE"));bindings.put("review2",Map.of("formVersionId",formId));}
+        var model=new ProcessModelInput(xml,steps,bindings);
         String processId=process.get("definition").get("id").asString();
         mvc.perform(put("/api/v1/process-definitions/"+processId+"/draft").header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(new SaveProcessDraft(UUID.fromString(versionId(process)),0L,model)))).andExpect(status().isOk());
         return json.readTree(mvc.perform(post("/api/v1/process-definitions/"+processId+"/publish").header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",versionId(process),"expectedRevision",1)))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("data");

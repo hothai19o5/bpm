@@ -1,0 +1,9 @@
+$kind: http-request
+order: 1000
+method: GET
+url: '{{baseUrl}}/api/v1/tasks/assignment-exceptions?page=0&size=10'
+queryParams:
+  - key: page
+    value: '0'
+  - key: size
+    value: '10'
