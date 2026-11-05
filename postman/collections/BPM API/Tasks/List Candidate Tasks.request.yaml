@@ -1,0 +1,14 @@
+$kind: http-request
+order: 3000
+method: GET
+url: '{{baseUrl}}/api/v1/tasks?box=CANDIDATE&page=0&size=10'
+queryParams:
+  - key: box
+    value: CANDIDATE
+  - key: q
+    value: ''
+    disabled: true
+  - key: page
+    value: '0'
+  - key: size
+    value: '10'

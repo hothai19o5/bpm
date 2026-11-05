@@ -29,6 +29,14 @@ public final class DesignerSmokeServer {
             UUID department=UUID.randomUUID();
             jdbc.update("insert into departments(id,created_at,updated_at,revision,code,name,status) values(?,current_timestamp,current_timestamp,0,'designer-smoke','Smoke department','ACTIVE')",department);
             jdbc.update("insert into department_members(id,created_at,updated_at,revision,user_id,department_id,is_primary) values(?,current_timestamp,current_timestamp,0,?,?,true)",UUID.randomUUID(),user.id(),department);
+            var reviewer=accounts.create(new NewUserAccount("reviewer.smoke","Reviewer smoke fixture",
+                    passwords.hash("reviewer-smoke-only-2026"),AccountStatus.ACTIVE,false));
+            UUID reviewerRole=UUID.randomUUID();
+            jdbc.update("insert into roles(id,created_at,updated_at,revision,code,name,status) values(?,current_timestamp,current_timestamp,0,'reviewer-smoke','Reviewer smoke only','ACTIVE')",reviewerRole);
+            jdbc.update("insert into user_roles(id,created_at,updated_at,revision,user_id,role_id) values(?,current_timestamp,current_timestamp,0,?,?)",UUID.randomUUID(),reviewer.id(),reviewerRole);
+            for(String permission:java.util.List.of("task.claim","task.complete","record.read.participated"))
+                jdbc.update("insert into role_permissions(id,created_at,updated_at,revision,role_id,permission_id) values(?,current_timestamp,current_timestamp,0,?,?)",UUID.randomUUID(),reviewerRole,jdbc.queryForObject("select id from permissions where code=?",UUID.class,permission));
+            jdbc.update("insert into department_members(id,created_at,updated_at,revision,user_id,department_id,is_primary) values(?,current_timestamp,current_timestamp,0,?,?,true)",UUID.randomUUID(),reviewer.id(),department);
             Files.writeString(output.resolve("ready"),user.id().toString());
             Instant deadline=Instant.now().plus(Duration.ofMinutes(15));
             while(!Files.exists(output.resolve("stop"))&&Instant.now().isBefore(deadline))Thread.sleep(500);

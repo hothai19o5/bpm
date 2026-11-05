@@ -36,6 +36,65 @@ class RecordDraftIntegrationTest {
     @Autowired java.time.Clock clock;
     @Autowired org.flowable.engine.TaskService taskService;
 
+    @Test void assignedInboxAndTaskDetailAreScopedAndHideTechnicalTasksAndHiddenFields() throws Exception {
+        var approver=actor("task.complete");var process=publishedProcess(Map.of("strategy","SPECIFIC_USER","specificUserId",approver.id().toString()),false);
+        var requester=actor(REQUESTER);department(requester);var record=postRecord(requester,createBody(process,completeData()),200);
+        submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);var task=activeTask(record);
+        var technical=taskService.newTask();technical.setName("Technical task");technical.setAssignee(approver.id().toString());taskService.saveTask(technical);
+        try {
+            var inbox=taskList(approver,"ASSIGNED",null,200);assertThat(inbox.get("totalElements").asLong()).isEqualTo(1);assertThat(inbox.get("items").get(0).get("id").asString()).isEqualTo(task.getId());
+            assertThat(taskList(approver,"ASSIGNED","no such record",200).get("totalElements").asLong()).isZero();
+            var detail=taskDetail(approver,task.getId(),200);assertThat(detail.get("canClaim").asBoolean()).isFalse();
+            assertThat(detail.get("view").get("data").get("amount").asString()).isEqualTo(completeData().get("amount"));
+            assertThat(detail.get("view").get("fieldAccess").get("budgetConfirmed").asString()).isEqualTo("READ_ONLY");
+            assertThat(detail.get("view").get("schema").get("properties").has("budgetCode")).isFalse();
+            taskDetail(requester,task.getId(),403);taskDetail(approver,technical.getId(),404);
+            var auditor=actor("record.read.all","audit.read");taskList(auditor,"ASSIGNED",null,403);taskDetail(auditor,task.getId(),403);
+            mvc.perform(get("/api/v1/tasks?size=101").header("Authorization",approver.bearer())).andExpect(status().isBadRequest());
+        } finally {taskService.deleteTask(technical.getId(),true);}
+    }
+
+    @Test void candidateMembershipIsCurrentAndConcurrentClaimHasExactlyOneWinnerAndAudit() throws Exception {
+        var a=actor("task.claim","task.complete");UUID scope=department(a);var b=actor("task.claim","task.complete");member(b,scope);
+        var outsider=actor("task.claim","task.complete");department(outsider);
+        var requester=actor("record.create","process.start","record.read.own","task.claim","task.complete");member(requester,scope);
+        var process=publishedProcess(Map.of("strategy","DEPARTMENT","departmentId",scope.toString()),false);var record=postRecord(requester,createBody(process,completeData()),200);
+        submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);String taskId=activeTask(record).getId();
+        assertThat(taskList(a,"CANDIDATE",null,200).get("totalElements").asLong()).isEqualTo(1);
+        assertThat(taskList(outsider,"CANDIDATE",null,200).get("totalElements").asLong()).isZero();
+        assertThat(taskList(requester,"CANDIDATE",null,200).get("totalElements").asLong()).isZero();
+        taskDetail(outsider,taskId,403);claim(outsider,taskId,403);claim(requester,taskId,403);
+        // Membership is read now, not copied forever from task creation.
+        var newcomer=actor("task.claim","task.complete");member(newcomer,scope);assertThat(taskList(newcomer,"CANDIDATE",null,200).get("totalElements").asLong()).isEqualTo(1);
+        jdbc.update("delete from department_members where user_id=?",a.id());assertThat(taskList(a,"CANDIDATE",null,200).get("totalElements").asLong()).isZero();claim(a,taskId,403);member(a,scope);
+        var barrier=new CyclicBarrier(2);List<Integer> statuses;
+        try(var pool=Executors.newFixedThreadPool(2)){var first=pool.submit(()->{barrier.await(30,TimeUnit.SECONDS);return claimStatus(a,taskId);});var second=pool.submit(()->{barrier.await(30,TimeUnit.SECONDS);return claimStatus(b,taskId);});statuses=List.of(first.get(60,TimeUnit.SECONDS),second.get(60,TimeUnit.SECONDS));}
+        assertThat(statuses).containsExactlyInAnyOrder(200,409);String assignee=activeTask(record).getAssignee();var winner=assignee.equals(a.id().toString())?a:b;var loser=winner==a?b:a;
+        claim(winner,taskId,200);assertThat(taskList(winner,"ASSIGNED",null,200).get("totalElements").asLong()).isEqualTo(1);
+        assertThat(taskList(loser,"CANDIDATE",null,200).get("totalElements").asLong()).isZero();taskDetail(loser,taskId,403);
+        assertThat(jdbc.queryForObject("select count(*) from audit_events where action='TASK_CLAIMED' and entity_id=?",Long.class,taskId)).isEqualTo(1);
+        assertThat(engine.findRunningInstancesByBusinessKey(record.get("businessKey").asString())).hasSize(1);
+    }
+
+    @Test void roleAndPermissionRevocationPreventClaimAndAuditFailureRollsClaimBack() throws Exception {
+        var approver=actor("task.claim","task.complete");UUID scope=department(approver);UUID role=jdbc.queryForObject("select role_id from user_roles where user_id=?",UUID.class,approver.id());
+        var process=publishedProcess(Map.of("strategy","ROLE","departmentId",scope.toString(),"roleId",role.toString()),false);
+        var requester=actor(REQUESTER);department(requester);var record=postRecord(requester,createBody(process,completeData()),200);
+        submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);String taskId=activeTask(record).getId();
+        jdbc.update("update roles set status='INACTIVE' where id=?",role);claim(approver,taskId,403);jdbc.update("update roles set status='ACTIVE' where id=?",role);
+        jdbc.execute("alter table audit_events add constraint p54_claim_fault check (action <> 'TASK_CLAIMED') not valid");
+        try {claim(approver,taskId,500);}finally{jdbc.execute("alter table audit_events drop constraint p54_claim_fault");}
+        assertThat(activeTask(record).getAssignee()).isNull();claim(approver,taskId,200);claim(approver,taskId,200);
+        assertThat(jdbc.queryForObject("select count(*) from audit_events where action='TASK_CLAIMED' and entity_id=?",Long.class,taskId)).isEqualTo(1);
+        jdbc.update("delete from role_permissions where role_id=? and permission_id=(select id from permissions where code='task.complete')",role);
+        taskDetail(approver,taskId,403);claim(approver,taskId,403);
+    }
+
+    private JsonNode taskList(Actor actor,String box,String q,int expected)throws Exception{return json.readTree(mvc.perform(get("/api/v1/tasks").param("box",box).param("q",q==null?"":q).header("Authorization",actor.bearer())).andExpect(status().is(expected)).andReturn().getResponse().getContentAsString()).get("data");}
+    private JsonNode taskDetail(Actor actor,String taskId,int expected)throws Exception{return json.readTree(mvc.perform(get("/api/v1/tasks/"+taskId).header("Authorization",actor.bearer())).andExpect(status().is(expected)).andReturn().getResponse().getContentAsString()).get("data");}
+    private JsonNode claim(Actor actor,String taskId,int expected)throws Exception{return json.readTree(mvc.perform(post("/api/v1/tasks/"+taskId+"/claim").header("Authorization",actor.bearer())).andExpect(status().is(expected)).andReturn().getResponse().getContentAsString()).get("data");}
+    private int claimStatus(Actor actor,String taskId)throws Exception{return mvc.perform(post("/api/v1/tasks/"+taskId+"/claim").header("Authorization",actor.bearer())).andReturn().getResponse().getStatus();}
+
     @Test void runtimeAssignmentUsesPinnedDepartmentAndCurrentManagerOnlyForNewTasks() throws Exception {
         var process=publishedProcess(Map.of("strategy","REQUESTER_MANAGER"),true);
         var requester=actor(REQUESTER);UUID original=department(requester);
@@ -325,7 +384,7 @@ class RecordDraftIntegrationTest {
         var process=publishedProcess();var admin=actor("process.design","process.publish");String definitionId=process.get("definition").get("id").asString();
         var clone=json.readTree(mvc.perform(post("/api/v1/process-definitions/"+definitionId+"/clone").header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",versionId(process),"expectedRevision",2)))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("data");
         String xml=clone.get("version").get("bpmnXml").asString().replaceFirst("<b:startEvent id=\"start\">.*?</b:startEvent>","<b:startEvent id=\"start\"/>");
-        var review=Map.<String,Object>of("assignment",Map.of("strategy","REQUESTER_MANAGER"),"actions",List.of("APPROVE"));
+        var review=json.convertValue(clone.get("version").get("stepConfig").get("review"),Map.class);
         var model=new ProcessModelInput(xml,Map.of("review",review,"f2",Map.of("outcome","APPROVE")),Map.of("review",Map.of("formVersionId",process.get("version").get("formVersionId").asString())));
         mvc.perform(put("/api/v1/process-definitions/"+definitionId+"/draft").header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(new SaveProcessDraft(UUID.fromString(versionId(clone)),0L,model)))).andExpect(status().isOk());
         long before=jdbc.queryForObject("select count(*) from flowable.act_re_deployment",Long.class);
@@ -349,7 +408,7 @@ class RecordDraftIntegrationTest {
         mvc.perform(post("/api/v1/form-definitions/"+form.get("definition").get("id").asString()+"/publish").header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",formId,"expectedRevision",0)))).andExpect(status().isOk());
         String processKey=key();var process=json.readTree(mvc.perform(post("/api/v1/process-definitions").header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("key",processKey,"name","Record test")))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("data");
         var entry=Map.<String,Object>of("fieldAccess",Map.of("itemName","EDITABLE","quantity","EDITABLE","amount","EDITABLE","reason","EDITABLE","proposalAttachments","EDITABLE","budgetCode","READ_ONLY"));
-        var review=Map.<String,Object>of("assignment",assignment,"actions",List.of("APPROVE"));
+        var review=Map.<String,Object>of("assignment",assignment,"actions",List.of("APPROVE"),"fieldAccess",Map.of("itemName","READ_ONLY","amount","READ_ONLY","budgetConfirmed","EDITABLE"));
         String xml;try(var input=getClass().getResourceAsStream("/processes/p45-authoring.xml")){xml=new String(input.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);}
         xml=xml.formatted(json.writeValueAsString(Map.of("step",review,"formVersionId",formId))).replace("\"purchase\"","\""+processKey+"\"").replace("<b:startEvent id=\"start\"/>","<b:startEvent id=\"start\"><b:extensionElements><bpm:configuration>"+json.writeValueAsString(Map.of("step",entry,"formVersionId",formId))+"</bpm:configuration></b:extensionElements></b:startEvent>");
         var steps=new LinkedHashMap<String,Object>(Map.of("start",entry,"review",review,"f2",Map.of("outcome","APPROVE")));
