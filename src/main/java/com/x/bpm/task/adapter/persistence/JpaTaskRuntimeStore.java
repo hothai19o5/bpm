@@ -49,6 +49,7 @@ public class JpaTaskRuntimeStore implements TaskRuntimeStore {
         var policy=new LinkedHashMap<String,FormFieldAccess>();fields.forEach((id,access)->policy.put((String)id,FormFieldAccess.valueOf((String)access)));
         var form=new FormVersion(version.getId(),version.getFormDefinition().getId(),version.getVersionNumber(),FormVersion.Status.valueOf(version.getStatus().name()),version.getSchemaJson(),version.getUiSchemaJson(),version.getCreatedBy().getId(),version.getPublishedBy()==null?null:version.getPublishedBy().getId(),version.getPublishedAt(),version.getRevision());
         var actions=step.get("actions") instanceof List<?> values?values.stream().map(value->FormAction.valueOf((String)value)).toList():List.<FormAction>of();
-        return new TaskFormContext(form,new FormFieldPolicy(policy),record.getFormData(),actions);
+        var resetFields=step.get("resetFieldsOnResubmit") instanceof List<?> values?values.stream().map(value->(String)value).collect(Collectors.toSet()):Set.<String>of();
+        return new TaskFormContext(form,new FormFieldPolicy(policy),record.getFormData(),actions,resetFields);
     }
 }

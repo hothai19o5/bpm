@@ -39,9 +39,12 @@ public final class CompleteTaskUseCase {
             RevisionGuard.requireMatch(command.expectedRevision(),task.recordRevision());
             var context=tasks.form(task);
             if(!context.actions().contains(command.action()))throw forbidden();
+            if(command.action()==com.x.bpm.form.domain.FormAction.RESUBMIT&&!task.requesterCorrection())throw forbidden();
             var data=forms.applyPatch(context.form(),context.data(),command.patch(),context.policy(),command.action(),command.reason());
+            var reset=command.action()==com.x.bpm.form.domain.FormAction.RESUBMIT?context.resetFieldsOnResubmit():Set.<String>of();
+            if(!reset.isEmpty()){var refreshed=new LinkedHashMap<>(data);reset.forEach(refreshed::remove);data=refreshed;}
             RecordAttachmentGuard.requireLinked(context.form(),data);
-            completions.prepare(task,command,actorId,requestKey,fingerprint,data);
+            completions.prepare(task,command,actorId,requestKey,fingerprint,data,reset);
             taskEngine.complete(taskId,actor.userId(),Map.of("bpmFormData",encoding.encode(data),"bpmOutcome",command.action().name()));
             String status;Instant completedAt=null;
             if(processEngine.findRunningInstance(task.engine().instanceId()).isEmpty()){
@@ -55,7 +58,7 @@ public final class CompleteTaskUseCase {
             }
             var result=completions.finish(task,command.action().name(),status,completedAt);
             completions.remember(actorId,requestKey,fingerprint,result);
-            audit.record("TASK_COMPLETED","ENGINE_TASK",taskId,Map.of("recordId",recordId.toString(),"activityId",task.engine().taskDefinitionKey(),"action",command.action().name(),"recordStatus",status,"revision",result.recordRevision()));
+            audit.record("TASK_COMPLETED","ENGINE_TASK",taskId,Map.of("recordId",recordId.toString(),"activityId",task.engine().taskDefinitionKey(),"action",command.action().name(),"recordStatus",status,"revision",result.recordRevision(),"systemResetFields",reset.stream().sorted().toList()));
             return result;
         });
     }

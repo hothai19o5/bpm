@@ -132,7 +132,7 @@ public class BpmnArtifactValidator implements ProcessValidationPort {
             if(!configuredOwners.add(ownerId))fail("extension",ownerId,"Cấu hình bị trùng.");
             Map<String,Object> payload;try{payload=payloadJson.readValue(e.getTextContent(),Map.class);}catch(Exception ex){fail("extension",ownerId,"JSON metadata không hợp lệ.");return null;}
             keys(payload,Set.of("step","formVersionId"),"extension",ownerId);var step=object(payload.get("step"),"step",ownerId);
-            Set<String> stepKeys=owner.getLocalName().equals("userTask")?Set.of("description","assignment","actions","fieldAccess","deadline"):owner.getLocalName().equals("startEvent")?Set.of("description","fieldAccess"):owner.getLocalName().equals("sequenceFlow")?Set.of("description","condition","outcome"):Set.of("description");
+            Set<String> stepKeys=owner.getLocalName().equals("userTask")?Set.of("description","assignment","actions","fieldAccess","deadline","resetFieldsOnResubmit"):owner.getLocalName().equals("startEvent")?Set.of("description","fieldAccess"):owner.getLocalName().equals("sequenceFlow")?Set.of("description","condition","outcome"):Set.of("description");
             keys(step,stepKeys,"step",ownerId);if(step.containsKey("description")&&(!(step.get("description") instanceof String text)||text.length()>4000))fail("description",ownerId,"Mô tả không hợp lệ.");for(var entry:Map.of("assignment",Set.of("strategy","specificUserId","departmentId","roleId"),"deadline",Set.of("value","unit"),"condition",Set.of("field","operator","value")).entrySet())if(step.containsKey(entry.getKey()))keys(object(step.get(entry.getKey()),entry.getKey(),ownerId),entry.getValue(),entry.getKey(),ownerId);
             for(String nested:List.of("assignment","deadline","condition"))if(step.containsKey(nested)){
                 var value=object(step.get(nested),nested,ownerId);
@@ -142,6 +142,7 @@ public class BpmnArtifactValidator implements ProcessValidationPort {
                 }
             }
             if(step.containsKey("actions")&&(!(step.get("actions") instanceof List<?> list)||list.stream().anyMatch(a->!(a instanceof String)||!ACTIONS.contains(a))))fail("actions",ownerId,"Action không hợp lệ.");
+            if(step.containsKey("resetFieldsOnResubmit")&&(!(step.get("resetFieldsOnResubmit") instanceof List<?> list)||list.size()>100||list.stream().anyMatch(field->!(field instanceof String))||new HashSet<>(list).size()!=list.size()))fail("resetFieldsOnResubmit",ownerId,"Cần danh sách field duy nhất, tối đa 100 trường.");
             if(step.containsKey("fieldAccess")){var access=object(step.get("fieldAccess"),"fieldAccess",ownerId);for(var accessValue:access.values())if(!Set.of("HIDDEN","READ_ONLY","EDITABLE").contains(Objects.toString(accessValue,"")))fail("fieldAccess",ownerId,"Quyền trường không hợp lệ.");}
             if(!step.isEmpty())steps.put(ownerId,new LinkedHashMap<>(step));
             if(payload.containsKey("formVersionId")){if(!Set.of("startEvent","userTask").contains(owner.getLocalName()))fail("formVersionId",ownerId,"Chỉ Start/UserTask được gắn form.");bindings.put(ownerId,Map.of("formVersionId",uuid(payload.get("formVersionId"),"formVersionId",ownerId).toString()));}
@@ -236,6 +237,11 @@ public class BpmnArtifactValidator implements ProcessValidationPort {
             if(step.containsKey("deadline")){var deadline=object(step.get("deadline"),"deadline",node.id);keys(deadline,Set.of("value","unit"),"deadline",node.id);Object value=deadline.get("value");if(!(value instanceof Number number)||number.doubleValue()!=number.longValue()||number.longValue()<1||number.longValue()>87600||!Set.of("HOURS","DAYS").contains(Objects.toString(deadline.get("unit"),"")))fail("deadline",node.id,"Hạn xử lý không hợp lệ.");}
             if(!(step.get("actions") instanceof List<?>))fail("actions",node.id,"Cần danh sách action.");var actions=(List<?>)step.get("actions");
             if(actions.isEmpty()||new HashSet<>(actions).size()!=actions.size()||actions.stream().anyMatch(a->!(a instanceof String)||!ACTIONS.contains(a)))fail("actions",node.id,"Action không hợp lệ hoặc bị trùng.");
+            if(actions.contains("RESUBMIT")&&!actions.equals(List.of("RESUBMIT")))fail("actions",node.id,"Bước bổ sung chỉ cho phép RESUBMIT và được giao người đề nghị.");
+            if(step.containsKey("resetFieldsOnResubmit")) {
+                if(!actions.equals(List.of("RESUBMIT")))fail("resetFieldsOnResubmit",node.id,"Chỉ bước RESUBMIT được đặt lại quyết định.");
+                for(var field:(List<?>)step.get("resetFieldsOnResubmit"))if(!fields.containsKey(field)||"EDITABLE".equals(access.get(field)))fail("resetFieldsOnResubmit",node.id,"Chỉ đặt lại trường tồn tại do bước khác quản lý.");
+            }
             for(var action:actions)if(outgoing(node.id,flows).stream().filter(f->action.equals(object(steps.getOrDefault(f.id,Map.of()),"step",f.id).get("outcome"))).count()!=1)fail("actions",node.id,"Action cần đúng một đường ra: "+action);
             for(var flow:outgoing(node.id,flows))if(!actions.contains(object(steps.getOrDefault(flow.id,Map.of()),"step",flow.id).get("outcome")))fail("outcome",flow.id,"Luồng từ task cần outcome thuộc action được cấp.");
         }

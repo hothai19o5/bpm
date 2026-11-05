@@ -1,0 +1,16 @@
+$kind: http-request
+order: 9000
+method: POST
+url: '{{baseUrl}}/api/v1/tasks/{{taskId}}/complete'
+headers:
+  - key: Idempotency-Key
+    value: '{{taskOperationKey}}'
+body:
+  type: json
+  content: |-
+    {
+      "expectedRevision": {{recordRevision}},
+      "action": "REJECT",
+      "patch": { "values": {}, "removeFields": [] },
+      "reason": "Không phê duyệt hồ sơ."
+    }

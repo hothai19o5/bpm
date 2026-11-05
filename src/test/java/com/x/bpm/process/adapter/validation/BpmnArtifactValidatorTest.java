@@ -33,6 +33,19 @@ class BpmnArtifactValidatorTest {
         return new ProcessModelInput(xml,Map.of("review",step,"f2",Map.of("outcome","APPROVE")),Map.of("review",Map.of("formVersionId",FORM)));
     }
     Map<String,Object> validStep(){return Map.of("assignment",Map.of("strategy","REQUESTER_MANAGER"),"actions",List.of("APPROVE"),"fieldAccess",Map.of("amount","READ_ONLY"),"deadline",Map.of("value",3,"unit","DAYS"));}
+    @Test void correctionResetPolicyIsTypedExclusiveAndCannotClearRequesterEditableOrUnknownFields() throws Exception {
+        for(Object reset:List.of("amount",List.of(1),List.of("amount","amount"),List.of("unknown"))) {
+            var step=new LinkedHashMap<>(validStep());step.put("actions",List.of("RESUBMIT"));step.put("resetFieldsOnResubmit",reset);
+            var input=model(step);String xml=input.bpmnXml().replace("\"outcome\":\"APPROVE\"","\"outcome\":\"RESUBMIT\"");
+            assertInvalid(new ProcessModelInput(xml,Map.of("review",step,"f2",Map.of("outcome","RESUBMIT")),input.formBindings()));
+        }
+        var step=new LinkedHashMap<>(validStep());step.put("actions",List.of("RESUBMIT"));step.put("resetFieldsOnResubmit",List.of("amount"));
+        var input=model(step);var configured=new ProcessModelInput(input.bpmnXml().replace("\"outcome\":\"APPROVE\"","\"outcome\":\"RESUBMIT\""),Map.of("review",step,"f2",Map.of("outcome","RESUBMIT")),input.formBindings());
+        assertThat(validator.validate("purchase",configured)).isEqualTo(configured);
+        step.put("fieldAccess",Map.of("amount","EDITABLE"));assertInvalid(model(step));
+        step.put("fieldAccess",Map.of("amount","READ_ONLY"));step.put("actions",List.of("APPROVE","RESUBMIT"));assertInvalid(model(step));
+        step.put("actions",List.of("APPROVE"));assertInvalid(model(step));
+    }
     @Test void compilesOnlyFixedExpressionsAndRejectsAuthoredExpressions() throws Exception {
         var input=model(validStep());var compiled=validator.prepareDeployment("purchase",input);
         assertThat(compiled).contains("bpmConditions.outcome(execution, 'APPROVE')").contains("conditionExpression");

@@ -41,6 +41,65 @@ class RecordDraftIntegrationTest {
     @Autowired TaskRuntimeStore runtimeTasks;@Autowired TaskCompletionStore completions;@Autowired TaskInboxUseCase inbox;
     @Autowired TaskEnginePort taskEngine;
 
+    @Test void correctionKeepsOneInstanceResetsConfiguredDecisionsAndReevaluatesThresholdAcrossTwoRounds() throws Exception {
+        var manager=actor("task.complete");var accounting=actor("task.complete");var director=actor("task.complete");var purchasing=actor("task.complete");
+        var process=publishedPurchaseProcess(specific(manager),specific(accounting),specific(director),specific(purchasing));
+        var requester=actor("record.create","process.start","record.read.own","record.update.draft","task.complete");department(requester);
+        var initial=new LinkedHashMap<>(completeData());initial.put("amount","50000001");var record=postRecord(requester,createBody(process,initial),200);
+        submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);String instance=activeTask(record).getProcessInstanceId();
+        act(manager,record,"manager",FormAction.APPROVE,Map.of(),null,200);
+        act(accounting,record,"accounting",FormAction.APPROVE,Map.of("budgetCode","B01","budgetConfirmed",true),null,200);
+        act(director,record,"director",FormAction.REQUEST_CHANGES,Map.of(),null,422);
+        var changes=act(director,record,"director",FormAction.REQUEST_CHANGES,Map.of(),"Cần điều chỉnh số tiền",200);assertThat(changes.get("recordStatus").asString()).isEqualTo("CHANGES_REQUESTED");
+        var correction=activeTask(record);assertThat(correction.getTaskDefinitionKey()).isEqualTo("correction");assertThat(correction.getAssignee()).isEqualTo(requester.id().toString());
+        var view=taskDetail(requester,correction.getId(),200);assertThat(view.get("view").get("data").has("budgetConfirmed")).isFalse();assertThat(view.get("actions").get(0).asString()).isEqualTo("RESUBMIT");
+        complete(manager,correction.getId(),new CompleteTask(view.get("recordRevision").asLong(),FormAction.RESUBMIT,new FormDataPatch(Map.of()),null),UUID.randomUUID(),403);
+        complete(requester,correction.getId(),new CompleteTask(view.get("recordRevision").asLong(),FormAction.RESUBMIT,new FormDataPatch(Map.of("budgetConfirmed",true)),null),UUID.randomUUID(),403);
+        var resubmit=new CompleteTask(view.get("recordRevision").asLong(),FormAction.RESUBMIT,new FormDataPatch(Map.of("amount","49999999")),null);UUID requestKey=UUID.randomUUID();
+        var sent=complete(requester,correction.getId(),resubmit,requestKey,200);assertThat(sent.get("recordStatus").asString()).isEqualTo("IN_PROGRESS");assertThat(complete(requester,correction.getId(),resubmit,requestKey,200)).isEqualTo(sent);
+        assertThat(jdbc.queryForObject("select not jsonb_exists(form_data,'budgetConfirmed') and not jsonb_exists(form_data,'budgetCode') from business_records where id=?",Boolean.class,id(record))).isTrue();
+        // A second correction round creates a distinct task on the same instance.
+        act(manager,record,"manager",FormAction.REQUEST_CHANGES,Map.of(),"Bổ sung diễn giải",200);String secondCorrection=activeTask(record).getId();assertThat(secondCorrection).isNotEqualTo(correction.getId());
+        act(requester,record,"correction",FormAction.RESUBMIT,Map.of("reason","Diễn giải bổ sung"),null,200);
+        act(manager,record,"manager",FormAction.APPROVE,Map.of(),null,200);
+        act(accounting,record,"accounting",FormAction.APPROVE,Map.of(),null,422);
+        String beforeBudgetRetry=activeTask(record).getId();act(accounting,record,"accounting",FormAction.APPROVE,Map.of("budgetCode","B02","budgetConfirmed",false),null,200);
+        assertThat(activeTask(record).getTaskDefinitionKey()).isEqualTo("accounting");assertThat(activeTask(record).getId()).isNotEqualTo(beforeBudgetRetry);
+        act(accounting,record,"accounting",FormAction.APPROVE,Map.of("budgetCode","B03","budgetConfirmed",true),null,200);
+        assertThat(activeTask(record).getTaskDefinitionKey()).isEqualTo("purchasing");assertThat(activeTask(record).getProcessInstanceId()).isEqualTo(instance);
+        assertThat(engine.findRunningInstancesByBusinessKey(record.get("businessKey").asString())).hasSize(1);
+        assertThat(jdbc.queryForObject("select count(*) from task_action_logs where business_record_id=? and action='RESUBMIT' and actor_id=?",Long.class,id(record),requester.id())).isEqualTo(2);
+        assertThat(jdbc.queryForObject("select count(*) from task_action_logs where business_record_id=? and action='RESUBMIT' and jsonb_array_length(payload->'systemResetFields')=2",Long.class,id(record))).isEqualTo(2);
+        assertThat(jdbc.queryForObject("select comment from task_action_logs where engine_task_id=?",String.class,correction.getId())).isNull();
+        assertThat(jdbc.queryForObject("select count(*) from flowable.act_hi_taskinst where proc_inst_id_=? and task_def_key_='director'",Long.class,instance)).isEqualTo(1);
+    }
+
+    @Test void resubmittingAboveThresholdRequiresDirectorAndRejectEndsSameInstanceWithReason() throws Exception {
+        var manager=actor("task.complete");var accounting=actor("task.complete");var director=actor("task.complete");var purchasing=actor("task.complete");
+        var process=publishedPurchaseProcess(specific(manager),specific(accounting),specific(director),specific(purchasing));
+        var requester=actor("record.create","process.start","record.read.own","task.complete");department(requester);var record=postRecord(requester,createBody(process,completeData()),200);
+        submit(requester,record,new SubmitRecord(0L,record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),200);String instance=activeTask(record).getProcessInstanceId();
+        act(manager,record,"manager",FormAction.REQUEST_CHANGES,Map.of(),"Điều chỉnh dự toán",200);
+        act(requester,record,"correction",FormAction.RESUBMIT,Map.of("amount","50000001"),null,200);
+        act(manager,record,"manager",FormAction.APPROVE,Map.of(),null,200);act(accounting,record,"accounting",FormAction.APPROVE,Map.of("budgetCode","B04","budgetConfirmed",true),null,200);
+        assertThat(activeTask(record).getTaskDefinitionKey()).isEqualTo("director");act(director,record,"director",FormAction.REJECT,Map.of()," ",422);
+        var result=act(director,record,"director",FormAction.REJECT,Map.of(),"Không được phê duyệt",200);assertThat(result.get("recordStatus").asString()).isEqualTo("REJECTED");
+        assertThat(taskService.createTaskQuery().processInstanceId(instance).count()).isZero();assertThat(engine.findHistory(instance).orElseThrow().endedAt()).isNotNull();
+        assertThat(jdbc.queryForObject("select engine_instance_id from business_records where id=?",String.class,id(record))).isEqualTo(instance);
+        assertThat(jdbc.queryForObject("select comment from task_action_logs where business_record_id=? and action='REJECT'",String.class,id(record))).isEqualTo("Không được phê duyệt");
+        submit(requester,record,new SubmitRecord(result.get("recordRevision").asLong(),record.get("title").asString(),new FormDataPatch(Map.of())),UUID.randomUUID(),409);
+    }
+
+    private Map<String,Object> specific(Actor actor){return Map.of("strategy","SPECIFIC_USER","specificUserId",actor.id().toString());}
+    private JsonNode act(Actor actor,JsonNode record,String activity,FormAction action,Map<String,Object> values,String reason,int expected)throws Exception{var task=activeTask(record);assertThat(task.getTaskDefinitionKey()).isEqualTo(activity);var detail=taskDetail(actor,task.getId(),200);return complete(actor,task.getId(),new CompleteTask(detail.get("recordRevision").asLong(),action,new FormDataPatch(values),reason),UUID.randomUUID(),expected);}
+    private JsonNode publishedPurchaseProcess(Map<String,Object> manager,Map<String,Object> accounting,Map<String,Object> director,Map<String,Object> purchasing)throws Exception{
+        var base=publishedProcess();var admin=actor("process.design","process.publish");String definitionId=base.get("definition").get("id").asString();
+        var clone=json.readTree(mvc.perform(post("/api/v1/process-definitions/"+definitionId+"/clone").header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",versionId(base),"expectedRevision",2)))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("data");
+        var model=com.x.bpm.support.RuntimeModelFixture.purchase(base.get("definition").get("key").asString(),base.get("version").get("formVersionId").asString(),manager,accounting,director,purchasing);
+        mvc.perform(put("/api/v1/process-definitions/"+definitionId+"/draft").header("Authorization",admin.bearer()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(new SaveProcessDraft(UUID.fromString(versionId(clone)),0L,model)))).andExpect(status().isOk());
+        return json.readTree(mvc.perform(post("/api/v1/process-definitions/"+definitionId+"/publish").header("Authorization",admin.bearer()).header("Idempotency-Key",UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(Map.of("versionId",versionId(clone),"expectedRevision",1)))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("data");
+    }
+
     @Test void completeRetriesAreAtomicAndAdvanceOneTaskThenReportActualTerminalStateAfterRetirement() throws Exception {
         var approver=actor("task.complete");var process=publishedProcess(Map.of("strategy","SPECIFIC_USER","specificUserId",approver.id().toString()),true);
         var requester=actor(REQUESTER);department(requester);var record=postRecord(requester,createBody(process,completeData()),200);

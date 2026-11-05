@@ -26,12 +26,12 @@ public class JpaTaskCompletionStore implements TaskCompletionStore {
     public Optional<TaskCompletionResult> replay(UUID actorId,UUID key,String fingerprint){return receipts.findByActorIdAndRequestKey(actorId,key).map(receipt->{
         if(!receipt.getFingerprint().equals(fingerprint))throw reused();
         return new TaskCompletionResult(receipt.getRecord().getId(),receipt.getEngineTaskId(),receipt.getAction(),receipt.getRecordStatus(),receipt.getRecordRevision());});}
-    public void prepare(BusinessTask task,CompleteTask command,UUID actorId,UUID key,String fingerprint,Map<String,Object> data){
+    public void prepare(BusinessTask task,CompleteTask command,UUID actorId,UUID key,String fingerprint,Map<String,Object> data,Set<String> resetFields){
         var record=entities.find(BusinessRecordEntity.class,task.recordId());
         record.setFormData(data);
         var log=new TaskActionLogEntity();log.setBusinessRecord(record);log.setEngineTaskId(task.engine().taskId());log.setActivityId(task.engine().taskDefinitionKey());
         log.setActor(entities.getReference(UserEntity.class,actorId));log.setAction(command.action().name());log.setComment(command.reason()==null?null:command.reason().strip());
-        log.setIdempotencyKey(key.toString());log.setPayload(Map.of("fingerprint",fingerprint,"changedFields",java.util.stream.Stream.concat(command.patch().values().keySet().stream(),command.patch().removeFields().stream()).distinct().sorted().toList()));
+        log.setIdempotencyKey(key.toString());log.setPayload(Map.of("fingerprint",fingerprint,"changedFields",java.util.stream.Stream.concat(command.patch().values().keySet().stream(),command.patch().removeFields().stream()).distinct().sorted().toList(),"systemResetFields",resetFields.stream().sorted().toList()));
         entities.persist(log);record.setLastTaskAction(log);entities.flush();
     }
     public TaskCompletionResult finish(BusinessTask task,String action,String status,Instant completedAt){

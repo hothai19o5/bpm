@@ -1,0 +1,16 @@
+$kind: http-request
+order: 7000
+method: POST
+url: '{{baseUrl}}/api/v1/tasks/{{taskId}}/complete'
+headers:
+  - key: Idempotency-Key
+    value: '{{taskOperationKey}}'
+body:
+  type: json
+  content: |-
+    {
+      "expectedRevision": {{recordRevision}},
+      "action": "REQUEST_CHANGES",
+      "patch": { "values": {}, "removeFields": [] },
+      "reason": "Cần bổ sung thông tin trước khi duyệt."
+    }
